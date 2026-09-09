@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Una várias imagens em uma composição personalizada." />
+  <title>Imagem em fila</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="." aria-label="Imagem em fila, início">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Imagem em fila</span>
+      </a>
+      <span class="topbar-note">composição de imagens</span>
+    </header>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div class="eyebrow"><span></span> ferramenta local · seus arquivos não saem do navegador</div>
+      <h1 id="page-title">Junte imagens.<br /><em>Do seu jeito.</em></h1>
+      <p class="intro">Envie várias imagens e nós organizamos tudo da maior para a menor, com alinhamento central e espaço transparente.</p>
+
+      <label class="upload-card" for="image-input" id="upload-card">
+        <span class="upload-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none"><path d="M16 22V5m0 0-6 6m6-6 6 6M7 19v6.5A1.5 1.5 0 0 0 8.5 27h15a1.5 1.5 0 0 0 1.5-1.5V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="upload-copy">
+          <strong>Enviar imagens</strong>
+          <span>Escolha duas ou mais imagens do seu computador</span>
+        </span>
+        <span class="upload-arrow" aria-hidden="true">↗</span>
+        <input id="image-input" type="file" accept="image/*" multiple />
+      </label>
+
+      <p class="drop-hint">ou arraste e solte suas imagens aqui</p>
+    </section>
+
+    <section class="workspace" id="workspace" hidden aria-live="polite">
+      <div class="workspace-heading">
+        <div>
+          <div class="eyebrow"><span></span> pré-visualização</div>
+          <h2>Sua composição</h2>
+        </div>
+        <div class="actions">
+          <button class="button button-secondary" id="add-more" type="button">+ Adicionar mais</button>
+          <button class="button button-secondary" id="vertical-toggle" type="button" aria-pressed="false">↕ Vertical</button>
+          <button class="button button-primary" id="export-button" type="button"><span>Exportar</span><span aria-hidden="true">↓</span></button>
+        </div>
+      </div>
+
+      <div class="composition-meta">
+        <span id="image-count">0 imagens</span>
+        <span class="meta-dot" aria-hidden="true"></span>
+        <span id="composition-size">0 × 0 px</span>
+        <span class="meta-spacer"></span>
+        <span class="sort-label">layout: <strong id="layout-label">maior → menor</strong></span>
+      </div>
+
+      <div class="controls-panel">
+        <div class="control-block color-block">
+          <div class="control-title">Cor do espaço vazio <span id="color-value">transparente</span></div>
+          <div class="color-editor">
+            <div class="color-editor-left">
+              <div class="color-wheel-row">
+                <button class="color-wheel" id="color-wheel" type="button" aria-label="Escolher uma cor na roda de cor">
+                  <span class="color-wheel-center" id="color-wheel-center"></span>
+                </button>
+                <div class="color-copy">
+                  <strong id="color-name">Transparente</strong>
+                  <span>Escolha a matiz na roda</span>
+                </div>
+              </div>
+              <div class="rgb-caption">ajuste · RGB</div>
+              <div class="rgb-fields" aria-label="Ajuste RGB">
+                <label>R<input id="red-input" type="number" min="0" max="255" value="0" /></label>
+                <label>G<input id="green-input" type="number" min="0" max="255" value="0" /></label>
+                <label>B<input id="blue-input" type="number" min="0" max="255" value="0" /></label>
+              </div>
+              <span class="erase-status" id="erase-status">selecione uma cor dentro da prévia</span>
+              <button class="erase-color-button" id="erase-color-button" type="button" disabled>Apagar cores</button>
+            </div>
+            <div class="color-editor-right">
+              <div class="color-topline">
+                <label class="hex-color" title="Editar código HEX">
+                  <span>HEX</span>
+                  <input id="hex-input" type="text" inputmode="text" maxlength="7" placeholder="#B8EC86" spellcheck="false" aria-label="Código HEX da cor" />
+                </label>
+                <button class="transparent-button is-active" id="transparent-toggle" type="button" aria-pressed="true">transparente</button>
+              </div>
+              <div class="color-surface is-transparent" id="color-surface" role="button" tabindex="0" aria-label="Escolher saturação e luminosidade da cor">
+                <span class="color-surface-cursor" id="color-surface-cursor"></span>
+              </div>
+              <input class="hue-slider" id="hue-slider" type="range" min="0" max="360" value="100" aria-label="Escolher matiz da cor" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-block layout-block">
+          <div class="control-title">Ordem e alinhamento</div>
+          <div class="layout-subtitle">ordem das imagens</div>
+          <div class="layout-options" role="radiogroup" aria-label="Ordem das imagens">
+            <button class="layout-button is-active" type="button" data-order="desc" role="radio" aria-checked="true"><span>↗</span> maior → menor</button>
+            <button class="layout-button" type="button" data-order="asc" role="radio" aria-checked="false"><span>↘</span> menor → maior</button>
+          </div>
+          <div class="layout-subtitle alignment-subtitle">alinhamento vertical</div>
+          <div class="layout-options alignment-options" role="radiogroup" aria-label="Alinhamento vertical">
+            <button class="layout-button align-button is-active" type="button" data-align="center" role="radio" aria-checked="true"><span>↕</span> centralizado</button>
+            <button class="layout-button align-button" type="button" data-align="top" role="radio" aria-checked="false"><span>↑</span> para cima</button>
+            <button class="layout-button align-button" type="button" data-align="bottom" role="radio" aria-checked="false"><span>↓</span> para baixo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-frame">
+        <div class="canvas-scroll" id="canvas-scroll">
+          <canvas id="composition-canvas" aria-label="Pré-visualização da composição final"></canvas>
+        </div>
+      </div>
+
+      <div class="spacing-panel">
+        <div class="spacing-heading">
+          <div>
+            <div class="control-title">Espaço entre imagens</div>
+            <p id="spacing-status">Clique em uma imagem na prévia para escolher o espaço até a próxima.</p>
+          </div>
+          <span class="spacing-hint">unidade: px</span>
+        </div>
+        <div class="spacing-controls">
+          <div class="spacing-control-row">
+            <label class="spacing-input-label" for="spacing-input">espaço <strong id="selected-image-label">—</strong></label>
+            <input id="spacing-input" type="number" min="0" step="1" value="0" aria-label="Espaço em pixels" />
+            <span class="px-suffix">px</span>
+            <button class="button button-secondary compact-button" id="apply-spacing" type="button">Aplicar espaço</button>
+          </div>
+          <div class="spacing-control-row">
+            <label class="spacing-input-label" for="padding-input">padding geral</label>
+            <input id="padding-input" type="number" min="0" step="1" value="0" aria-label="Padding geral em pixels" />
+            <span class="px-suffix">px</span>
+            <button class="button button-secondary compact-button" id="apply-padding" type="button">Aplicar padding</button>
+          </div>
+          <button class="button button-secondary compact-button" id="select-all-gaps" type="button">Selecionar todos</button>
+        </div>
+      </div>
+
+      <div class="file-list" id="file-list"></div>
+    </section>
+
+    <footer class="footer">Uma ferramenta simples para imagens lado a lado <span>✦</span></footer>
+  </main>
+  <script src="javascript.js"></script>
+</body>
+</html>
