@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Una várias imagens em uma composição personalizada." />
-  <title>Imagem em fila</title>
+  <title>CaptiMage</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -13,11 +14,17 @@
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <a class="brand" href="." aria-label="Imagem em fila, início">
+      <a class="brand" href="." aria-label="CaptiMage, início">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span>Imagem em fila</span>
+        <span>CaptiMage</span>
       </a>
-      <span class="topbar-note">composição de imagens</span>
+      <div class="topbar-tools">
+        <span class="topbar-note">composição de imagens</span>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Ativar modo escuro">
+          <span class="theme-toggle-icon" aria-hidden="true">☾</span>
+          <span class="theme-toggle-label">escuro</span>
+        </button>
+      </div>
     </header>
 
     <section class="hero" aria-labelledby="page-title">
@@ -122,29 +129,34 @@
         </div>
       </div>
 
-      <div class="spacing-panel">
-        <div class="spacing-heading">
-          <div>
-            <div class="control-title">Espaço entre imagens</div>
-            <p id="spacing-status">Clique em uma imagem na prévia para escolher o espaço até a próxima.</p>
+      <div class="spacing-panel-wrap">
+        <div class="spacing-panel">
+          <div class="spacing-heading">
+            <div>
+              <div class="control-title">Espaço entre imagens</div>
+              <p id="spacing-status">Clique em uma imagem na prévia para escolher o espaço até a próxima.</p>
+            </div>
+            <span class="spacing-hint">unidade: px</span>
           </div>
-          <span class="spacing-hint">unidade: px</span>
+          <div class="spacing-controls">
+            <div class="spacing-control-row">
+              <label class="spacing-input-label" for="spacing-input">espaço <strong id="selected-image-label">—</strong></label>
+              <input id="spacing-input" type="number" min="0" step="1" value="0" aria-label="Espaço em pixels" />
+              <span class="px-suffix">px</span>
+              <button class="button button-secondary compact-button" id="apply-spacing" type="button">Aplicar espaço</button>
+            </div>
+            <div class="spacing-control-row">
+              <label class="spacing-input-label" for="padding-input">padding geral</label>
+              <input id="padding-input" type="number" min="0" step="1" value="0" aria-label="Padding geral em pixels" />
+              <span class="px-suffix">px</span>
+              <button class="button button-secondary compact-button" id="apply-padding" type="button">Aplicar padding</button>
+            </div>
+            <button class="button button-secondary compact-button" id="select-all-gaps" type="button">Selecionar todos</button>
+          </div>
         </div>
-        <div class="spacing-controls">
-          <div class="spacing-control-row">
-            <label class="spacing-input-label" for="spacing-input">espaço <strong id="selected-image-label">—</strong></label>
-            <input id="spacing-input" type="number" min="0" step="1" value="0" aria-label="Espaço em pixels" />
-            <span class="px-suffix">px</span>
-            <button class="button button-secondary compact-button" id="apply-spacing" type="button">Aplicar espaço</button>
-          </div>
-          <div class="spacing-control-row">
-            <label class="spacing-input-label" for="padding-input">padding geral</label>
-            <input id="padding-input" type="number" min="0" step="1" value="0" aria-label="Padding geral em pixels" />
-            <span class="px-suffix">px</span>
-            <button class="button button-secondary compact-button" id="apply-padding" type="button">Aplicar padding</button>
-          </div>
-          <button class="button button-secondary compact-button" id="select-all-gaps" type="button">Selecionar todos</button>
-        </div>
+        <button class="delete-image-button" id="delete-image-button" type="button" aria-label="Apagar imagem selecionada" title="Apagar imagem selecionada" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7m-9 0 .8 13.2c.03.45.4.8.85.8h8.7c.45 0 .82-.35.85-.8L18 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
 
       <div class="file-list" id="file-list"></div>

@@ -11,6 +11,8 @@ const layoutLabel = document.getElementById("layout-label");
 const addMoreButton = document.getElementById("add-more");
 const verticalToggle = document.getElementById("vertical-toggle");
 const exportButton = document.getElementById("export-button");
+const themeToggle = document.getElementById("theme-toggle");
+const deleteImageButton = document.getElementById("delete-image-button");
 const colorWheel = document.getElementById("color-wheel");
 const colorWheelCenter = document.getElementById("color-wheel-center");
 const hexInput = document.getElementById("hex-input");
@@ -46,12 +48,14 @@ let isVertical = false;
 let gapSizes = [];
 let paddingSize = 0;
 let imageRects = [];
+let displayedImages = [];
 let selectedImageIndex = null;
 let allGapsSelected = false;
 let eraseColor = null;
 let eraseMode = false;
 let history = [];
 let historyIndex = -1;
+let isDarkTheme = false;
 
 const orderNames = { desc: "maior → menor", asc: "menor → maior" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
@@ -62,6 +66,11 @@ imageInput.addEventListener("change", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Delete" && !isTypingTarget(event.target) && !deleteImageButton.disabled) {
+    event.preventDefault();
+    deleteImageButton.click();
+    return;
+  }
   if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
   const changed = event.shiftKey ? redo() : undo();
   if (changed) event.preventDefault();
@@ -78,6 +87,8 @@ verticalToggle.addEventListener("click", () => {
   renderComposition();
 });
 exportButton.addEventListener("click", exportComposition);
+themeToggle.addEventListener("click", toggleTheme);
+deleteImageButton.addEventListener("click", deleteSelectedImage);
 canvas.addEventListener("click", selectImageAt);
 colorWheel.addEventListener("click", chooseWheelColor);
 hexInput.addEventListener("change", applyHexInput);
@@ -179,8 +190,19 @@ function loadImage(file) {
 }
 
 function renderComposition(shouldScroll = false) {
+  if (!selectedImages.length) {
+    canvas.width = 0;
+    canvas.height = 0;
+    displayedImages = [];
+    imageRects = [];
+    workspace.hidden = true;
+    fileList.innerHTML = "";
+    updateSpacingControls();
+    return;
+  }
   const descending = [...selectedImages].sort((a, b) => b.image.height - a.image.height);
   const orderedImages = selectedOrder === "asc" ? descending.reverse() : descending;
+  displayedImages = orderedImages;
   const maxHeight = Math.max(...orderedImages.map(({ image }) => image.height));
   const maxWidth = Math.max(...orderedImages.map(({ image }) => image.width));
   const gapCount = Math.max(0, orderedImages.length - 1);
@@ -297,6 +319,7 @@ function updateSpacingControls() {
   const hasGaps = selectedImages.length > 1;
   spacingInput.disabled = !hasGaps;
   eraseColorButton.disabled = !hasImages;
+  deleteImageButton.disabled = !hasImages || selectedImageIndex === null;
   selectAllGapsButton.disabled = !hasImages;
   applySpacingButton.disabled = !hasGaps || (selectedImageIndex === null && !allGapsSelected) || selectedImageIndex >= selectedImages.length - 1;
   applyPaddingButton.disabled = !hasImages;
@@ -308,7 +331,7 @@ function updateSpacingControls() {
     paddingInput.value = paddingSize;
   } else if (selectedImageIndex !== null) {
     const isLastImage = selectedImageIndex >= selectedImages.length - 1;
-    spacingStatus.textContent = isLastImage ? "Última imagem selecionada: ajuste apenas o padding à direita." : "Imagem selecionada: ajuste o espaço até a próxima e o padding à direita.";
+    spacingStatus.textContent = isLastImage ? "Última imagem selecionada: ajuste apenas o padding geral." : "Imagem selecionada: ajuste o espaço até a próxima e o padding geral.";
     selectedImageLabel.textContent = isLastImage ? `${selectedImageIndex + 1}` : `${selectedImageIndex + 1} → ${selectedImageIndex + 2}`;
     spacingInput.value = isLastImage ? 0 : gapSizes[selectedImageIndex] || 0;
     spacingInput.disabled = isLastImage;
@@ -347,6 +370,46 @@ function applyPadding() {
   paddingSize = pixels;
   commitHistory();
   renderComposition();
+}
+
+function deleteSelectedImage() {
+  if (selectedImageIndex === null || !displayedImages[selectedImageIndex]) return;
+  const imageToDelete = displayedImages[selectedImageIndex];
+  const removedIndex = selectedImageIndex;
+  const previousGaps = [...gapSizes];
+  selectedImages = selectedImages.filter((item) => item !== imageToDelete);
+  if (previousGaps.length) {
+    if (removedIndex === 0) gapSizes = previousGaps.slice(1);
+    else if (removedIndex === previousGaps.length) gapSizes = previousGaps.slice(0, -1);
+    else gapSizes = [...previousGaps.slice(0, removedIndex - 1), previousGaps[removedIndex - 1] + previousGaps[removedIndex], ...previousGaps.slice(removedIndex + 1)];
+  }
+  selectedImageIndex = null;
+  allGapsSelected = false;
+  eraseMode = false;
+  canvasScroll.classList.remove("is-eyedropper");
+  eraseColorButton.classList.remove("is-active");
+  deleteImageButton.classList.add("is-triggered");
+  setTimeout(() => deleteImageButton.classList.remove("is-triggered"), 180);
+  commitHistory();
+  renderComposition();
+}
+
+function isTypingTarget(target) {
+  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+}
+
+function toggleTheme() {
+  isDarkTheme = !isDarkTheme;
+  applyTheme();
+  try { localStorage.setItem("imgt-theme", isDarkTheme ? "dark" : "light"); } catch (error) { /* armazenamento opcional */ }
+}
+
+function applyTheme() {
+  document.body.classList.toggle("dark-theme", isDarkTheme);
+  themeToggle.setAttribute("aria-pressed", String(isDarkTheme));
+  themeToggle.setAttribute("aria-label", isDarkTheme ? "Ativar modo claro" : "Ativar modo escuro");
+  themeToggle.querySelector(".theme-toggle-icon").textContent = isDarkTheme ? "☀" : "☾";
+  themeToggle.querySelector(".theme-toggle-label").textContent = isDarkTheme ? "claro" : "escuro";
 }
 
 function chooseWheelColor(event) {
@@ -589,6 +652,8 @@ function escapeHtml(value) {
   }[character]));
 }
 
+try { isDarkTheme = localStorage.getItem("imgt-theme") === "dark"; } catch (error) { /* armazenamento opcional */ }
+applyTheme();
 updateLayoutLabel();
 updateColorControls();
 history = [captureState()];
