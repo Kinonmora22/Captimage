@@ -1,8 +1,10 @@
 const imageInput = document.getElementById("image-input");
 const uploadCard = document.getElementById("upload-card");
 const workspace = document.getElementById("workspace");
+const demoStrip = document.getElementById("demo-strip");
 const canvas = document.getElementById("composition-canvas");
 const canvasScroll = document.getElementById("canvas-scroll");
+const canvasSelectionLayer = document.getElementById("canvas-selection-layer");
 const context = canvas.getContext("2d");
 const fileList = document.getElementById("file-list");
 const imageCount = document.getElementById("image-count");
@@ -11,13 +13,17 @@ const layoutLabel = document.getElementById("layout-label");
 const addMoreButton = document.getElementById("add-more");
 const verticalToggle = document.getElementById("vertical-toggle");
 const exportButton = document.getElementById("export-button");
+const copyButton = document.getElementById("copy-button");
+const copyLabel = document.getElementById("copy-label");
+const historyToastStack = document.getElementById("history-toast-stack");
 const themeToggle = document.getElementById("theme-toggle");
 const deleteImageButton = document.getElementById("delete-image-button");
-const colorWheel = document.getElementById("color-wheel");
-const colorWheelCenter = document.getElementById("color-wheel-center");
 const hexInput = document.getElementById("hex-input");
-const colorName = document.getElementById("color-name");
+const colorContextLabel = document.getElementById("color-context-label");
 const colorValue = document.getElementById("color-value");
+const colorTargetButtons = [...document.querySelectorAll("[data-color-target]")];
+const emptyColorSummary = document.getElementById("empty-color-summary");
+const borderColorSummary = document.getElementById("border-color-summary");
 const transparentToggle = document.getElementById("transparent-toggle");
 const colorSurface = document.getElementById("color-surface");
 const colorSurfaceCursor = document.getElementById("color-surface-cursor");
@@ -25,6 +31,8 @@ const hueSlider = document.getElementById("hue-slider");
 const redInput = document.getElementById("red-input");
 const greenInput = document.getElementById("green-input");
 const blueInput = document.getElementById("blue-input");
+const transparencySlider = document.getElementById("transparency-slider");
+const transparencyValue = document.getElementById("transparency-value");
 const eraseColorButton = document.getElementById("erase-color-button");
 const eraseStatus = document.getElementById("erase-status");
 const orderButtons = [...document.querySelectorAll("[data-order]")];
@@ -36,9 +44,21 @@ const paddingInput = document.getElementById("padding-input");
 const applySpacingButton = document.getElementById("apply-spacing");
 const applyPaddingButton = document.getElementById("apply-padding");
 const selectAllGapsButton = document.getElementById("select-all-gaps");
+const borderThicknessInput = document.getElementById("border-thickness-input");
+const borderRadiusGeneralInput = document.getElementById("border-radius-general-input");
+const borderRadiusInputs = {
+  topLeft: document.getElementById("border-radius-top-left-input"),
+  bottomLeft: document.getElementById("border-radius-bottom-left-input"),
+  bottomRight: document.getElementById("border-radius-bottom-right-input"),
+  topRight: document.getElementById("border-radius-top-right-input")
+};
 
 let selectedImages = [];
 let selectedColor = null;
+let borderColor = "#ffffff";
+let colorOpacity = 1;
+let borderOpacity = 1;
+let activeColorTarget = "empty";
 let selectedHue = 100;
 let selectedSaturation = 0.7;
 let selectedValue = 0.9;
@@ -55,7 +75,18 @@ let eraseColor = null;
 let eraseMode = false;
 let history = [];
 let historyIndex = -1;
-let isDarkTheme = false;
+let isDarkTheme = true;
+let animationFrameId = null;
+let finishAnimation = null;
+let lastBackgroundKey = null;
+let borderThickness = 0;
+let borderRadii = { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
+let copyFeedbackTimer = null;
+let suppressCanvasClick = false;
+let scrollInertiaFrameId = null;
+let canvasDragState = null;
+let hoveredImageIndex = null;
+let selectionPulseTimer = null;
 
 const orderNames = { desc: "maior → menor", asc: "menor → maior" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
@@ -73,7 +104,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
   const changed = event.shiftKey ? redo() : undo();
-  if (changed) event.preventDefault();
+  if (changed) {
+    event.preventDefault();
+    showHistoryToast(event.shiftKey ? "redo" : "undo");
+  }
 });
 
 addMoreButton.addEventListener("click", () => imageInput.click());
@@ -87,10 +121,17 @@ verticalToggle.addEventListener("click", () => {
   renderComposition();
 });
 exportButton.addEventListener("click", exportComposition);
+copyButton.addEventListener("click", copyComposition);
 themeToggle.addEventListener("click", toggleTheme);
 deleteImageButton.addEventListener("click", deleteSelectedImage);
-canvas.addEventListener("click", selectImageAt);
-colorWheel.addEventListener("click", chooseWheelColor);
+canvas.addEventListener("click", handleCanvasClick);
+colorTargetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    activeColorTarget = button.dataset.colorTarget;
+    syncHsvFromActiveColor();
+    updateColorControls();
+  });
+});
 hexInput.addEventListener("change", applyHexInput);
 hexInput.addEventListener("blur", applyHexInput);
 colorSurface.addEventListener("click", chooseSurfaceColor);
@@ -103,18 +144,73 @@ colorSurface.addEventListener("keydown", (event) => {
 hueSlider.addEventListener("input", () => {
   selectedHue = Number(hueSlider.value);
   updateColorControls();
-  if (selectedColor) setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue), false);
+  if (getActiveColor()) setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue), false);
 });
 hueSlider.addEventListener("change", () => commitHistory());
+[transparencySlider].forEach((input) => {
+  input.addEventListener("input", () => {
+    setActiveOpacity(1 - Number(input.value) / 100);
+    updateColorControls();
+    renderComposition();
+  });
+  input.addEventListener("change", () => commitHistory());
+});
 [redInput, greenInput, blueInput].forEach((input) => {
   input.addEventListener("change", applyRgbInputs);
   input.addEventListener("blur", applyRgbInputs);
 });
 transparentToggle.addEventListener("click", () => {
-  selectedColor = null;
+  setActiveColor(null, false);
   updateColorControls();
   commitHistory();
   renderComposition();
+});
+borderThicknessInput.addEventListener("input", () => {
+  borderThickness = clamp(Number.parseInt(borderThicknessInput.value, 10) || 0, 0, 200);
+  borderThicknessInput.value = borderThickness;
+  renderComposition();
+});
+borderThicknessInput.addEventListener("change", commitHistory);
+borderRadiusGeneralInput.addEventListener("input", () => {
+  const radius = clamp(Number.parseInt(borderRadiusGeneralInput.value, 10) || 0, 0, 1000);
+  borderRadiusGeneralInput.value = radius;
+  Object.keys(borderRadii).forEach((corner) => { borderRadii[corner] = radius; });
+  updateBorderControls();
+  renderComposition();
+});
+borderRadiusGeneralInput.addEventListener("change", commitHistory);
+Object.entries(borderRadiusInputs).forEach(([corner, input]) => {
+  input.addEventListener("input", () => {
+    borderRadii[corner] = clamp(Number.parseInt(input.value, 10) || 0, 0, 1000);
+    input.value = borderRadii[corner];
+    updateBorderControls();
+    renderComposition();
+  });
+  input.addEventListener("change", commitHistory);
+});
+
+const enterParameterHandlers = new Map([
+  [hexInput, applyHexInput],
+  [redInput, applyRgbInputs],
+  [greenInput, applyRgbInputs],
+  [blueInput, applyRgbInputs],
+  [spacingInput, () => applySpacing()],
+  [paddingInput, () => applyPadding()],
+  [borderThicknessInput, () => { borderThicknessInput.dispatchEvent(new Event("change")); }],
+  [borderRadiusGeneralInput, () => { borderRadiusGeneralInput.dispatchEvent(new Event("change")); }],
+  [borderRadiusInputs.topLeft, () => { borderRadiusInputs.topLeft.dispatchEvent(new Event("change")); }],
+  [borderRadiusInputs.bottomLeft, () => { borderRadiusInputs.bottomLeft.dispatchEvent(new Event("change")); }],
+  [borderRadiusInputs.bottomRight, () => { borderRadiusInputs.bottomRight.dispatchEvent(new Event("change")); }],
+  [borderRadiusInputs.topRight, () => { borderRadiusInputs.topRight.dispatchEvent(new Event("change")); }],
+  [hueSlider, () => hueSlider.dispatchEvent(new Event("change"))],
+  [transparencySlider, () => transparencySlider.dispatchEvent(new Event("change"))]
+]);
+enterParameterHandlers.forEach((handler, input) => {
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    handler();
+  });
 });
 orderButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -150,6 +246,7 @@ selectAllGapsButton.addEventListener("click", () => {
   allGapsSelected = true;
   selectedImageIndex = null;
   updateSpacingControls();
+  pulseSelectedImages();
 });
 
 ["dragenter", "dragover"].forEach((eventName) => {
@@ -190,19 +287,29 @@ function loadImage(file) {
 }
 
 function renderComposition(shouldScroll = false) {
+  stopCurrentAnimation();
   if (!selectedImages.length) {
     canvas.width = 0;
     canvas.height = 0;
     displayedImages = [];
     imageRects = [];
+    hoveredImageIndex = null;
+    canvasSelectionLayer.innerHTML = "";
     workspace.hidden = true;
+    demoStrip.hidden = false;
+    copyButton.disabled = true;
     fileList.innerHTML = "";
     updateSpacingControls();
     return;
   }
+  const previousRects = imageRects.map((rect) => ({ ...rect }));
+  const backgroundKey = `${selectedColor || "transparent"}:${colorOpacity}`;
+  const shouldFadeBackground = lastBackgroundKey !== null && lastBackgroundKey !== backgroundKey;
+  lastBackgroundKey = backgroundKey;
   const descending = [...selectedImages].sort((a, b) => b.image.height - a.image.height);
   const orderedImages = selectedOrder === "asc" ? descending.reverse() : descending;
-  displayedImages = orderedImages;
+  const nextRects = [];
+  const renderableImages = new Map();
   const maxHeight = Math.max(...orderedImages.map(({ image }) => image.height));
   const maxWidth = Math.max(...orderedImages.map(({ image }) => image.width));
   const gapCount = Math.max(0, orderedImages.length - 1);
@@ -214,38 +321,128 @@ function renderComposition(shouldScroll = false) {
   canvas.width = totalWidth;
   canvas.height = totalHeight;
   context.clearRect(0, 0, totalWidth, totalHeight);
-  if (selectedColor) {
-    context.fillStyle = selectedColor;
+  if (selectedColor && colorOpacity > 0) {
+    context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
     context.fillRect(0, 0, totalWidth, totalHeight);
   }
 
-  imageRects = [];
   if (isVertical) {
     let yPosition = paddingSize;
     orderedImages.forEach(({ image }, index) => {
       const renderableImage = getRenderableImage(image);
+      renderableImages.set(image, renderableImage);
       const xPosition = Math.round(paddingSize + (maxWidth - image.width) / 2);
-      imageRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: imageRects.length });
-      context.drawImage(renderableImage, xPosition, yPosition, image.width, image.height);
+      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image });
       yPosition += image.height + (gapSizes[index] || 0);
     });
   } else {
     let xPosition = paddingSize;
     orderedImages.forEach(({ image }, index) => {
       const renderableImage = getRenderableImage(image);
+      renderableImages.set(image, renderableImage);
       const yPosition = paddingSize + (selectedAlignment === "top" ? 0 : selectedAlignment === "bottom" ? maxHeight - image.height : Math.round((maxHeight - image.height) / 2));
-      imageRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: imageRects.length });
-      context.drawImage(renderableImage, xPosition, yPosition, image.width, image.height);
+      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image });
       xPosition += image.width + (gapSizes[index] || 0);
     });
   }
 
+  imageRects = nextRects;
+  displayedImages = orderedImages;
+  hoveredImageIndex = hoveredImageIndex !== null && hoveredImageIndex < orderedImages.length ? hoveredImageIndex : null;
+  updateSelectionLayer();
+  animateComposition(previousRects, nextRects, renderableImages, totalWidth, totalHeight);
+
   workspace.hidden = false;
+  demoStrip.hidden = true;
+  copyButton.disabled = false;
   imageCount.textContent = `${orderedImages.length} ${orderedImages.length === 1 ? "imagem" : "imagens"}`;
   compositionSize.textContent = `${totalWidth.toLocaleString("pt-BR")} × ${totalHeight.toLocaleString("pt-BR")} px`;
   renderFileList(orderedImages);
   updateSpacingControls();
+  if (shouldFadeBackground) {
+    canvas.classList.remove("canvas-fade");
+    void canvas.offsetWidth;
+    canvas.classList.add("canvas-fade");
+    canvas.addEventListener("animationend", () => canvas.classList.remove("canvas-fade"), { once: true });
+  }
   if (shouldScroll) workspace.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function animateComposition(previousRects, nextRects, renderableImages, totalWidth, totalHeight) {
+  const previousByImage = new Map(previousRects.map((rect) => [rect.image, rect]));
+  const nextImages = new Set(nextRects.map((rect) => rect.image));
+  const transitions = nextRects.map((end) => {
+    const start = previousByImage.get(end.image) || end;
+    return {
+      image: end.image,
+      source: renderableImages.get(end.image),
+      start,
+      end,
+      startOpacity: previousByImage.has(end.image) ? 1 : 0,
+      endOpacity: 1
+    };
+  });
+
+  previousRects.forEach((start) => {
+    if (!nextImages.has(start.image)) {
+      transitions.push({
+        image: start.image,
+        source: getRenderableImage(start.image),
+        start,
+        end: start,
+        startOpacity: 1,
+        endOpacity: 0
+      });
+    }
+  });
+
+  const drawFrame = (progress) => {
+    const eased = 1 - Math.pow(1 - progress, 3);
+    context.clearRect(0, 0, totalWidth, totalHeight);
+    if (selectedColor && colorOpacity > 0) {
+      context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
+      context.fillRect(0, 0, totalWidth, totalHeight);
+    }
+    transitions.forEach(({ source, start, end, startOpacity, endOpacity }) => {
+      const x = start.left + (end.left - start.left) * eased;
+      const y = start.top + (end.top - start.top) * eased;
+      const opacity = startOpacity + (endOpacity - startOpacity) * eased;
+      const travel = Math.hypot(end.left - start.left, end.top - start.top);
+      const blur = Math.min(3.2, travel / 70) * Math.sin(Math.PI * progress);
+      context.save();
+      context.globalAlpha = opacity;
+      context.filter = blur > .05 ? `blur(${blur.toFixed(2)}px)` : "none";
+      drawRenderableImage(source, x, y, end.right - end.left, end.bottom - end.top);
+      context.restore();
+    });
+  };
+
+  if (!previousRects.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    drawFrame(1);
+    return;
+  }
+
+  const startedAt = performance.now();
+  const duration = 520;
+  finishAnimation = () => drawFrame(1);
+  const tick = (now) => {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    drawFrame(progress);
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(tick);
+    } else {
+      animationFrameId = null;
+      finishAnimation = null;
+    }
+  };
+  animationFrameId = requestAnimationFrame(tick);
+}
+
+function stopCurrentAnimation() {
+  if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+  animationFrameId = null;
+  if (finishAnimation) finishAnimation();
+  finishAnimation = null;
 }
 
 function getRenderableImage(image) {
@@ -268,6 +465,59 @@ function getRenderableImage(image) {
   }
   processedContext.putImageData(pixels, 0, 0);
   return processedCanvas;
+}
+
+function drawRenderableImage(source, x, y, width, height) {
+  const thickness = clamp(borderThickness, 0, Math.min(width, height) / 2);
+  const outerRadii = clampCornerRadii(borderRadii, width, height);
+  const borderColorValue = borderColor ? colorWithOpacity(borderColor, borderOpacity) : "transparent";
+  context.save();
+  roundedRectPath(context, x, y, width, height, outerRadii);
+  context.clip();
+  if (thickness > 0 && borderColor) {
+    context.fillStyle = borderColorValue;
+    context.fillRect(x, y, width, height);
+  }
+  const inset = thickness;
+  const innerWidth = Math.max(0, width - inset * 2);
+  const innerHeight = Math.max(0, height - inset * 2);
+  const innerRadii = {
+    topLeft: Math.max(0, outerRadii.topLeft - inset),
+    topRight: Math.max(0, outerRadii.topRight - inset),
+    bottomRight: Math.max(0, outerRadii.bottomRight - inset),
+    bottomLeft: Math.max(0, outerRadii.bottomLeft - inset)
+  };
+  roundedRectPath(context, x + inset, y + inset, innerWidth, innerHeight, innerRadii);
+  context.clip();
+  context.drawImage(source, x + inset, y + inset, innerWidth, innerHeight);
+  context.restore();
+}
+
+function roundedRectPath(targetContext, x, y, width, height, radii) {
+  const topLeft = radii.topLeft;
+  const topRight = radii.topRight;
+  const bottomRight = radii.bottomRight;
+  const bottomLeft = radii.bottomLeft;
+  targetContext.beginPath();
+  targetContext.moveTo(x + topLeft, y);
+  targetContext.lineTo(x + width - topRight, y);
+  targetContext.quadraticCurveTo(x + width, y, x + width, y + topRight);
+  targetContext.lineTo(x + width, y + height - bottomRight);
+  targetContext.quadraticCurveTo(x + width, y + height, x + width - bottomRight, y + height);
+  targetContext.lineTo(x + bottomLeft, y + height);
+  targetContext.quadraticCurveTo(x, y + height, x, y + height - bottomLeft);
+  targetContext.lineTo(x, y + topLeft);
+  targetContext.quadraticCurveTo(x, y, x + topLeft, y);
+  targetContext.closePath();
+}
+
+function clampCornerRadii(radii, width, height) {
+  const nextRadii = { ...radii };
+  const horizontalScale = width / Math.max(1, nextRadii.topLeft + nextRadii.topRight, nextRadii.bottomLeft + nextRadii.bottomRight);
+  const verticalScale = height / Math.max(1, nextRadii.topLeft + nextRadii.bottomLeft, nextRadii.topRight + nextRadii.bottomRight);
+  const scale = Math.min(1, horizontalScale, verticalScale);
+  Object.keys(nextRadii).forEach((corner) => { nextRadii[corner] = Math.max(0, nextRadii[corner] * scale); });
+  return nextRadii;
 }
 
 function updateLayoutLabel() {
@@ -300,6 +550,287 @@ function selectImageAt(event) {
   selectImageGap(target.index);
 }
 
+function handleCanvasClick(event) {
+  if (suppressCanvasClick) {
+    suppressCanvasClick = false;
+    return;
+  }
+  selectImageAt(event);
+}
+
+function getCanvasImageAt(event) {
+  if (!imageRects.length) return null;
+  const bounds = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / bounds.width;
+  const scaleY = canvas.height / bounds.height;
+  const x = (event.clientX - bounds.left) * scaleX;
+  const y = (event.clientY - bounds.top) * scaleY;
+  return imageRects.find((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) || null;
+}
+
+function updateHoveredImage(event) {
+  const nextIndex = getCanvasImageAt(event)?.index ?? null;
+  if (nextIndex === hoveredImageIndex) return;
+  hoveredImageIndex = nextIndex;
+  updateSelectionLayer();
+}
+
+function clearHoveredImage() {
+  if (hoveredImageIndex === null) return;
+  hoveredImageIndex = null;
+  updateSelectionLayer();
+}
+
+function pulseSelectedImages() {
+  updateSelectionLayer();
+  window.clearTimeout(selectionPulseTimer);
+  const selected = [...canvasSelectionLayer.querySelectorAll(".canvas-selection.is-selected")];
+  selected.forEach((element) => {
+    element.classList.remove("is-pulse");
+    void element.offsetWidth;
+    element.classList.add("is-pulse");
+  });
+  selectionPulseTimer = window.setTimeout(() => {
+    selected.forEach((element) => element.classList.remove("is-pulse"));
+  }, 720);
+}
+
+function updateSelectionLayer() {
+  if (!canvasSelectionLayer) return;
+  canvasSelectionLayer.innerHTML = imageRects.map((rect) => {
+    const radii = clampCornerRadii(borderRadii, rect.right - rect.left, rect.bottom - rect.top);
+    const isSelected = allGapsSelected || selectedImageIndex === rect.index;
+    const classes = ["canvas-selection"];
+    if (hoveredImageIndex === rect.index) classes.push("is-hovered");
+    if (isSelected) classes.push("is-selected");
+    return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left}px;top:${rect.top}px;width:${rect.right - rect.left}px;height:${rect.bottom - rect.top}px;border-radius:${radii.topLeft}px ${radii.topRight}px ${radii.bottomRight}px ${radii.bottomLeft}px;--selection-thickness:${Math.max(3, borderThickness)}px"></div>`;
+  }).join("");
+}
+
+function cancelScrollInertia() {
+  if (scrollInertiaFrameId !== null) cancelAnimationFrame(scrollInertiaFrameId);
+  scrollInertiaFrameId = null;
+  cancelWheelInertia();
+}
+
+function startScrollInertia(readPosition, applyDelta, velocityX, velocityY) {
+  cancelScrollInertia();
+  const friction = 0.93;
+  const frameDuration = 16;
+
+  const tick = () => {
+    velocityX *= friction;
+    velocityY *= friction;
+    if (Math.abs(velocityX) < 0.02 && Math.abs(velocityY) < 0.02) {
+      scrollInertiaFrameId = null;
+      return;
+    }
+
+    const before = readPosition();
+    applyDelta(velocityX * frameDuration, velocityY * frameDuration);
+    const after = readPosition();
+    if (after.x === before.x) velocityX = 0;
+    if (after.y === before.y) velocityY = 0;
+    scrollInertiaFrameId = requestAnimationFrame(tick);
+  };
+
+  if (Math.abs(velocityX) >= 0.02 || Math.abs(velocityY) >= 0.02) {
+    scrollInertiaFrameId = requestAnimationFrame(tick);
+  }
+}
+
+let wheelInertiaFrameId = null;
+let wheelInertiaTarget = null;
+let wheelGoalX = 0;
+let wheelGoalY = 0;
+
+function cancelWheelInertia() {
+  if (wheelInertiaFrameId !== null) cancelAnimationFrame(wheelInertiaFrameId);
+  wheelInertiaFrameId = null;
+  wheelInertiaTarget = null;
+  wheelGoalX = 0;
+  wheelGoalY = 0;
+}
+
+function getWheelDelta(event) {
+  const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+  return { x: event.deltaX * multiplier, y: event.deltaY * multiplier };
+}
+
+function canScrollTarget(target, deltaX, deltaY) {
+  if (target === canvasScroll) {
+    return (Math.abs(deltaX) > 0 && canvasScroll.scrollWidth > canvasScroll.clientWidth) || (Math.abs(deltaY) > 0 && canvasScroll.scrollHeight > canvasScroll.clientHeight);
+  }
+  const page = document.scrollingElement || document.documentElement;
+  return (Math.abs(deltaX) > 0 && page.scrollWidth > page.clientWidth) || (Math.abs(deltaY) > 0 && page.scrollHeight > page.clientHeight);
+}
+
+function readScrollPosition(target) {
+  return target === canvasScroll ? { x: canvasScroll.scrollLeft, y: canvasScroll.scrollTop } : { x: window.scrollX, y: window.scrollY };
+}
+
+function applyScrollDelta(target, deltaX, deltaY) {
+  if (target === canvasScroll) {
+    canvasScroll.scrollLeft += deltaX;
+    canvasScroll.scrollTop += deltaY;
+    return;
+  }
+  window.scrollTo({ left: window.scrollX + deltaX, top: window.scrollY + deltaY, behavior: "instant" });
+}
+
+function getScrollLimits(target) {
+  if (target === canvasScroll) {
+    return {
+      x: Math.max(0, canvasScroll.scrollWidth - canvasScroll.clientWidth),
+      y: Math.max(0, canvasScroll.scrollHeight - canvasScroll.clientHeight)
+    };
+  }
+  const page = document.scrollingElement || document.documentElement;
+  return {
+    x: Math.max(0, page.scrollWidth - page.clientWidth),
+    y: Math.max(0, page.scrollHeight - page.clientHeight)
+  };
+}
+
+function startWheelInertia(target, deltaX, deltaY) {
+  if (wheelInertiaTarget !== target) {
+    cancelWheelInertia();
+    wheelInertiaTarget = target;
+    const current = readScrollPosition(target);
+    wheelGoalX = current.x;
+    wheelGoalY = current.y;
+  }
+  const limits = getScrollLimits(target);
+  wheelGoalX = clamp(wheelGoalX + deltaX, 0, limits.x);
+  wheelGoalY = clamp(wheelGoalY + deltaY, 0, limits.y);
+  if (wheelInertiaFrameId !== null) return;
+
+  const tick = () => {
+    const current = readScrollPosition(target);
+    const differenceX = wheelGoalX - current.x;
+    const differenceY = wheelGoalY - current.y;
+    if (Math.abs(differenceX) < .5 && Math.abs(differenceY) < .5) {
+      applyScrollDelta(target, differenceX, differenceY);
+      wheelInertiaFrameId = null;
+      wheelInertiaTarget = null;
+      wheelGoalX = 0;
+      wheelGoalY = 0;
+      return;
+    }
+    const stepX = Math.sign(differenceX) * Math.min(Math.abs(differenceX) * .2, 28);
+    const stepY = Math.sign(differenceY) * Math.min(Math.abs(differenceY) * .2, 28);
+    applyScrollDelta(target, stepX, stepY);
+    wheelInertiaFrameId = requestAnimationFrame(tick);
+  };
+
+  wheelInertiaFrameId = requestAnimationFrame(tick);
+}
+
+function handleWheelScroll(event) {
+  if (event.ctrlKey) return;
+  const { x: deltaX, y: deltaY } = getWheelDelta(event);
+  if (!deltaX && !deltaY) return;
+  const canvasTarget = event.target instanceof Element ? event.target.closest(".canvas-scroll") : null;
+  const preferredTarget = canvasTarget || (document.scrollingElement || document.documentElement);
+  const target = canScrollTarget(preferredTarget, deltaX, deltaY) ? preferredTarget : (preferredTarget === canvasScroll ? (document.scrollingElement || document.documentElement) : preferredTarget);
+  if (!canScrollTarget(target, deltaX, deltaY)) return;
+  event.preventDefault();
+  startWheelInertia(target, deltaX, deltaY);
+}
+
+function beginCanvasDrag(event) {
+  if (event.button !== 0 || canvasScroll.classList.contains("is-eyedropper")) return;
+  cancelScrollInertia();
+  const state = canvasDragState = {
+    pointerId: event.pointerId,
+    lastX: event.clientX,
+    lastY: event.clientY,
+    currentX: event.clientX,
+    currentY: event.clientY,
+    lastTime: event.timeStamp || performance.now(),
+    velocityX: 0,
+    velocityY: 0,
+    moved: false,
+    armed: false,
+    holdTimer: null
+  };
+  state.holdTimer = window.setTimeout(() => {
+    if (canvasDragState !== state) return;
+    state.armed = true;
+    state.lastX = state.currentX;
+    state.lastY = state.currentY;
+    state.lastTime = performance.now();
+  }, 180);
+}
+
+function moveCanvasDrag(event) {
+  updateHoveredImage(event);
+  if (!canvasDragState || canvasDragState.pointerId !== event.pointerId) return;
+  canvasDragState.currentX = event.clientX;
+  canvasDragState.currentY = event.clientY;
+  if (!canvasDragState.armed) {
+    canvasDragState.lastX = event.clientX;
+    canvasDragState.lastY = event.clientY;
+    canvasDragState.lastTime = event.timeStamp || performance.now();
+    return;
+  }
+  const now = event.timeStamp || performance.now();
+  const deltaX = event.clientX - canvasDragState.lastX;
+  const deltaY = event.clientY - canvasDragState.lastY;
+  const elapsed = Math.max(1, now - canvasDragState.lastTime);
+  const distance = Math.hypot(deltaX, deltaY);
+  if (!canvasDragState.moved && distance < 4) {
+    canvasDragState.lastX = event.clientX;
+    canvasDragState.lastY = event.clientY;
+    canvasDragState.lastTime = now;
+    return;
+  }
+
+  if (!canvasDragState.moved) {
+    canvasDragState.moved = true;
+    suppressCanvasClick = true;
+    canvasScroll.classList.add("is-dragging-scroll");
+    canvasScroll.setPointerCapture?.(event.pointerId);
+  }
+  event.preventDefault();
+  canvasScroll.scrollLeft -= deltaX;
+  canvasScroll.scrollTop -= deltaY;
+  canvasDragState.velocityX = -deltaX / elapsed;
+  canvasDragState.velocityY = -deltaY / elapsed;
+  canvasDragState.lastX = event.clientX;
+  canvasDragState.lastY = event.clientY;
+  canvasDragState.lastTime = now;
+}
+
+function finishCanvasDrag(event) {
+  if (!canvasDragState || (event && canvasDragState.pointerId !== event.pointerId)) return;
+  const state = canvasDragState;
+  canvasDragState = null;
+  window.clearTimeout(state.holdTimer);
+  canvasScroll.classList.remove("is-dragging-scroll");
+  if (state.moved) {
+    startScrollInertia(
+      () => ({ x: canvasScroll.scrollLeft, y: canvasScroll.scrollTop }),
+      (deltaX, deltaY) => { canvasScroll.scrollLeft += deltaX; canvasScroll.scrollTop += deltaY; },
+      state.velocityX,
+      state.velocityY
+    );
+  }
+}
+
+function handleCanvasPointerLeave() {
+  clearHoveredImage();
+}
+
+function initializeDragScrolling() {
+  canvasScroll.addEventListener("pointerdown", beginCanvasDrag);
+  canvasScroll.addEventListener("pointermove", moveCanvasDrag);
+  canvasScroll.addEventListener("pointerup", finishCanvasDrag);
+  canvasScroll.addEventListener("pointercancel", finishCanvasDrag);
+  canvasScroll.addEventListener("pointerleave", handleCanvasPointerLeave);
+  document.addEventListener("wheel", handleWheelScroll, { passive: false });
+}
+
 function startColorErase() {
   if (!selectedImages.length) return;
   eraseMode = !eraseMode;
@@ -312,6 +843,7 @@ function selectImageGap(index) {
   selectedImageIndex = index;
   allGapsSelected = false;
   updateSpacingControls();
+  pulseSelectedImages();
 }
 
 function updateSpacingControls() {
@@ -406,21 +938,11 @@ function toggleTheme() {
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", isDarkTheme);
+  document.documentElement.classList.toggle("dark-theme", isDarkTheme);
   themeToggle.setAttribute("aria-pressed", String(isDarkTheme));
   themeToggle.setAttribute("aria-label", isDarkTheme ? "Ativar modo claro" : "Ativar modo escuro");
   themeToggle.querySelector(".theme-toggle-icon").textContent = isDarkTheme ? "☀" : "☾";
   themeToggle.querySelector(".theme-toggle-label").textContent = isDarkTheme ? "claro" : "escuro";
-}
-
-function chooseWheelColor(event) {
-  const bounds = colorWheel.getBoundingClientRect();
-  const centerX = bounds.left + bounds.width / 2;
-  const centerY = bounds.top + bounds.height / 2;
-  const angle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
-  selectedHue = (angle + 90 + 360) % 360;
-  selectedSaturation = Math.max(selectedSaturation, 0.7);
-  selectedValue = Math.max(selectedValue, 0.9);
-  setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue));
 }
 
 function chooseSurfaceColor(event) {
@@ -434,7 +956,7 @@ function chooseSurfaceColor(event) {
 function setColor(color, recordHistory = true) {
   const normalized = normalizeHex(color);
   if (!normalized) return;
-  selectedColor = normalized;
+  setActiveColor(normalized);
   const hsv = rgbToHsv(hexToRgb(normalized));
   selectedHue = hsv.h;
   selectedSaturation = hsv.s;
@@ -445,22 +967,69 @@ function setColor(color, recordHistory = true) {
 }
 
 function updateColorControls() {
-  const isTransparent = !selectedColor;
-  colorName.textContent = isTransparent ? "Transparente" : "Cor escolhida";
-  colorValue.textContent = isTransparent ? "transparente" : selectedColor.toUpperCase();
+  const activeColor = getActiveColor();
+  const isTransparent = !activeColor;
+  colorContextLabel.textContent = activeColorTarget === "border" ? "Cor da borda" : "Cor do vazio";
+  colorValue.textContent = isTransparent ? "transparente" : activeColor.toUpperCase();
   const displayColor = hsvToHex(selectedHue, selectedSaturation, selectedValue);
-  colorWheelCenter.style.background = isTransparent ? "transparent" : selectedColor;
   colorSurface.style.setProperty("--picker-hue", selectedHue);
   colorSurfaceCursor.style.left = `${selectedSaturation * 100}%`;
   colorSurfaceCursor.style.top = `${(1 - selectedValue) * 100}%`;
   hueSlider.value = Math.round(selectedHue);
-  hexInput.value = selectedColor ? selectedColor.toUpperCase() : "";
+  hexInput.value = activeColor ? activeColor.toUpperCase() : "";
   const rgb = hexToRgb(displayColor);
   redInput.value = rgb.r;
   greenInput.value = rgb.g;
   blueInput.value = rgb.b;
   transparentToggle.classList.toggle("is-active", isTransparent);
   transparentToggle.setAttribute("aria-pressed", String(isTransparent));
+  transparencySlider.value = Math.round((1 - getActiveOpacity()) * 100);
+  transparencySlider.disabled = isTransparent;
+  transparencyValue.textContent = isTransparent ? "—" : `${Math.round((1 - getActiveOpacity()) * 100)}%`;
+  emptyColorSummary.textContent = selectedColor ? selectedColor.toUpperCase() : "transparente";
+  borderColorSummary.textContent = borderColor ? borderColor.toUpperCase() : "transparente";
+  colorTargetButtons.forEach((button) => {
+    const isActive = button.dataset.colorTarget === activeColorTarget;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+  updateBorderControls();
+}
+
+function getActiveColor() {
+  return activeColorTarget === "border" ? borderColor : selectedColor;
+}
+
+function setActiveColor(color, updateOpacity = true) {
+  if (activeColorTarget === "border") borderColor = color;
+  else selectedColor = color;
+  if (updateOpacity && color === null) setActiveOpacity(1);
+}
+
+function getActiveOpacity() {
+  return activeColorTarget === "border" ? borderOpacity : colorOpacity;
+}
+
+function setActiveOpacity(opacity) {
+  if (activeColorTarget === "border") borderOpacity = opacity;
+  else colorOpacity = opacity;
+}
+
+function syncHsvFromActiveColor() {
+  const activeColor = getActiveColor();
+  if (!activeColor) return;
+  const hsv = rgbToHsv(hexToRgb(activeColor));
+  selectedHue = hsv.h;
+  selectedSaturation = hsv.s;
+  selectedValue = hsv.v;
+}
+
+function updateBorderControls() {
+  borderThicknessInput.value = borderThickness;
+  const radii = Object.values(borderRadii);
+  const generalRadius = radii.every((radius) => radius === radii[0]) ? radii[0] : "";
+  borderRadiusGeneralInput.value = generalRadius;
+  Object.entries(borderRadiusInputs).forEach(([corner, input]) => { input.value = borderRadii[corner]; });
 }
 
 function applyHexInput() {
@@ -468,7 +1037,8 @@ function applyHexInput() {
   if (normalized) {
     setColor(normalized);
   } else if (hexInput.value.trim()) {
-    hexInput.value = selectedColor ? selectedColor.toUpperCase() : "";
+    const activeColor = getActiveColor();
+    hexInput.value = activeColor ? activeColor.toUpperCase() : "";
   }
 }
 
@@ -501,6 +1071,11 @@ function hexToRgb(hex) {
 
 function rgbToHex({ r, g, b }) {
   return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function colorWithOpacity(hex, opacity) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${clamp(opacity, 0, 1)})`;
 }
 
 function rgbToHsv({ r, g, b }) {
@@ -550,16 +1125,58 @@ function renderFileList(orderedImages) {
 
 function exportComposition() {
   if (!selectedImages.length) return;
+  stopCurrentAnimation();
   const link = document.createElement("a");
   link.download = "imagem-em-fila.png";
   link.href = canvas.toDataURL("image/png");
   link.click();
 }
 
+async function copyComposition() {
+  if (!selectedImages.length) return;
+  if (!navigator.clipboard?.write || !window.ClipboardItem) {
+    showCopyFeedback("Indisponível");
+    return;
+  }
+  stopCurrentAnimation();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) return;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    showCopyFeedback("Copiado");
+  } catch (error) {
+    showCopyFeedback("Falhou");
+  }
+}
+
+function showCopyFeedback(label) {
+  window.clearTimeout(copyFeedbackTimer);
+  copyLabel.textContent = label;
+  copyButton.classList.add("is-confirmed");
+  copyFeedbackTimer = window.setTimeout(() => {
+    copyLabel.textContent = "Copiar";
+    copyButton.classList.remove("is-confirmed");
+  }, 1500);
+}
+
+function showHistoryToast(action) {
+  const toast = document.createElement("div");
+  toast.className = `history-toast ${action}`;
+  toast.setAttribute("role", "status");
+  toast.setAttribute("aria-label", action === "undo" ? "Desfeito" : "Refeito");
+  toast.textContent = action === "undo" ? "↶" : "↷";
+  historyToastStack.appendChild(toast);
+  window.setTimeout(() => toast.classList.add("is-leaving"), 1050);
+  window.setTimeout(() => toast.remove(), 1450);
+}
+
 function captureState() {
   return {
     selectedImages: [...selectedImages],
     selectedColor,
+    borderColor,
+    colorOpacity,
+    borderOpacity,
     selectedHue,
     selectedSaturation,
     selectedValue,
@@ -568,6 +1185,8 @@ function captureState() {
     isVertical,
     gapSizes: [...gapSizes],
     paddingSize,
+    borderThickness,
+    borderRadii: { ...borderRadii },
     eraseColor: eraseColor ? { ...eraseColor } : null
   };
 }
@@ -575,7 +1194,7 @@ function captureState() {
 function statesMatch(first, second) {
   if (!first || !second) return false;
   const sameImages = first.selectedImages.length === second.selectedImages.length && first.selectedImages.every((image, index) => image === second.selectedImages[index]);
-  return sameImages && first.selectedColor === second.selectedColor && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.paddingSize === second.paddingSize && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
+  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
 }
 
 function commitHistory() {
@@ -607,6 +1226,9 @@ function redo() {
 function restoreState(snapshot) {
   selectedImages = [...snapshot.selectedImages];
   selectedColor = snapshot.selectedColor;
+  borderColor = snapshot.borderColor || "#ffffff";
+  colorOpacity = typeof snapshot.colorOpacity === "number" ? snapshot.colorOpacity : 1;
+  borderOpacity = typeof snapshot.borderOpacity === "number" ? snapshot.borderOpacity : 1;
   selectedHue = snapshot.selectedHue;
   selectedSaturation = snapshot.selectedSaturation;
   selectedValue = snapshot.selectedValue;
@@ -615,6 +1237,8 @@ function restoreState(snapshot) {
   isVertical = snapshot.isVertical;
   gapSizes = [...snapshot.gapSizes];
   paddingSize = snapshot.paddingSize;
+  borderThickness = typeof snapshot.borderThickness === "number" ? snapshot.borderThickness : 0;
+  borderRadii = snapshot.borderRadii ? { ...snapshot.borderRadii } : { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
   eraseColor = snapshot.eraseColor ? { ...snapshot.eraseColor } : null;
   selectedImageIndex = null;
   allGapsSelected = false;
@@ -636,11 +1260,13 @@ function restoreState(snapshot) {
     button.setAttribute("aria-checked", String(isActive));
   });
   updateLayoutLabel();
+  syncHsvFromActiveColor();
   updateColorControls();
   if (selectedImages.length) {
     renderComposition();
   } else {
     workspace.hidden = true;
+    copyButton.disabled = true;
     fileList.innerHTML = "";
     updateSpacingControls();
   }
@@ -652,7 +1278,8 @@ function escapeHtml(value) {
   }[character]));
 }
 
-try { isDarkTheme = localStorage.getItem("imgt-theme") === "dark"; } catch (error) { /* armazenamento opcional */ }
+try { isDarkTheme = localStorage.getItem("imgt-theme") !== "light"; } catch (error) { isDarkTheme = true; }
+initializeDragScrolling();
 applyTheme();
 updateLayoutLabel();
 updateColorControls();

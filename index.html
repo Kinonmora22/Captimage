@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css.css" />
 </head>
 <body>
+  <div class="history-toast-stack" id="history-toast-stack" aria-live="polite" aria-atomic="false"></div>
   <main class="app-shell">
     <header class="topbar">
       <a class="brand" href="." aria-label="CaptiMage, início">
@@ -45,6 +46,27 @@
       </label>
 
       <p class="drop-hint">ou arraste e solte suas imagens aqui</p>
+
+      <section class="demo-strip" id="demo-strip" aria-label="Exemplo animado de composição">
+        <div class="demo-heading">
+          <span><i></i> uma ideia do resultado</span>
+          <span>prévia automática</span>
+        </div>
+        <div class="demo-window">
+          <div class="demo-track">
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80" alt="Carro esportivo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80" alt="Carro em uma estrada" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80" alt="Carro clássico" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80" alt="Carro esportivo" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80" alt="Carro em uma estrada" /></figure>
+            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80" alt="Carro clássico" /></figure>
+          </div>
+        </div>
+      </section>
     </section>
 
     <section class="workspace" id="workspace" hidden aria-live="polite">
@@ -56,6 +78,10 @@
         <div class="actions">
           <button class="button button-secondary" id="add-more" type="button">+ Adicionar mais</button>
           <button class="button button-secondary" id="vertical-toggle" type="button" aria-pressed="false">↕ Vertical</button>
+          <button class="button button-secondary copy-button" id="copy-button" type="button" aria-label="Copiar imagem atual" title="Copiar imagem atual" disabled>
+            <span id="copy-label">Copiar</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6.8A1.8 1.8 0 0 0 14.2 5H6.8A1.8 1.8 0 0 0 5 6.8v7.4A1.8 1.8 0 0 0 6.8 16H8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
           <button class="button button-primary" id="export-button" type="button"><span>Exportar</span><span aria-hidden="true">↓</span></button>
         </div>
       </div>
@@ -70,17 +96,16 @@
 
       <div class="controls-panel">
         <div class="control-block color-block">
-          <div class="control-title">Cor do espaço vazio <span id="color-value">transparente</span></div>
+          <div class="control-title"><span id="color-context-label">Cor do vazio</span> <span id="color-value">transparente</span></div>
           <div class="color-editor">
             <div class="color-editor-left">
-              <div class="color-wheel-row">
-                <button class="color-wheel" id="color-wheel" type="button" aria-label="Escolher uma cor na roda de cor">
-                  <span class="color-wheel-center" id="color-wheel-center"></span>
+              <div class="color-targets" role="tablist" aria-label="Escolher o tipo de cor">
+                <button class="color-target-button is-active" id="empty-color-target" type="button" role="tab" aria-selected="true" data-color-target="empty">
+                  <span>Cor do vazio</span><strong id="empty-color-summary">transparente</strong>
                 </button>
-                <div class="color-copy">
-                  <strong id="color-name">Transparente</strong>
-                  <span>Escolha a matiz na roda</span>
-                </div>
+                <button class="color-target-button" id="border-color-target" type="button" role="tab" aria-selected="false" data-color-target="border">
+                  <span>Cor da borda</span><strong id="border-color-summary">#FFFFFF</strong>
+                </button>
               </div>
               <div class="rgb-caption">ajuste · RGB</div>
               <div class="rgb-fields" aria-label="Ajuste RGB">
@@ -89,6 +114,10 @@
                 <label>B<input id="blue-input" type="number" min="0" max="255" value="0" /></label>
               </div>
               <span class="erase-status" id="erase-status">selecione uma cor dentro da prévia</span>
+              <div class="transparency-control">
+                <div class="transparency-label"><span>transparência</span><strong id="transparency-value">—</strong></div>
+                <input id="transparency-slider" type="range" min="0" max="100" value="0" aria-label="Transparência da cor selecionada" disabled />
+              </div>
               <button class="erase-color-button" id="erase-color-button" type="button" disabled>Apagar cores</button>
             </div>
             <div class="color-editor-right">
@@ -120,12 +149,28 @@
             <button class="layout-button align-button" type="button" data-align="top" role="radio" aria-checked="false"><span>↑</span> para cima</button>
             <button class="layout-button align-button" type="button" data-align="bottom" role="radio" aria-checked="false"><span>↓</span> para baixo</button>
           </div>
+          <div class="layout-subtitle border-subtitle">borda das imagens</div>
+          <div class="border-fields">
+            <div class="border-row border-row-wide">
+              <label class="border-field"><span>espessura de borda</span><input id="border-thickness-input" type="number" min="0" max="200" step="1" value="0" /></label>
+              <label class="border-field"><span>raio de borda (geral)</span><input id="border-radius-general-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+            </div>
+            <div class="border-row border-row-corners">
+              <label class="border-field"><span>raio superior esquerdo</span><input id="border-radius-top-left-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio inferior esquerdo</span><input id="border-radius-bottom-left-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio inferior direito</span><input id="border-radius-bottom-right-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio superior direito</span><input id="border-radius-top-right-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="canvas-frame">
         <div class="canvas-scroll" id="canvas-scroll">
-          <canvas id="composition-canvas" aria-label="Pré-visualização da composição final"></canvas>
+          <div class="canvas-stage" id="canvas-stage">
+            <canvas id="composition-canvas" aria-label="Pré-visualização da composição final"></canvas>
+            <div class="canvas-selection-layer" id="canvas-selection-layer" aria-hidden="true"></div>
+          </div>
         </div>
       </div>
 
