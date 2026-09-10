@@ -53,6 +53,7 @@ const borderRadiusInputs = {
   bottomRight: document.getElementById("border-radius-bottom-right-input"),
   topRight: document.getElementById("border-radius-top-right-input")
 };
+const borderParameterInputs = [borderThicknessInput, borderRadiusGeneralInput, ...Object.values(borderRadiusInputs)];
 
 let selectedImages = [];
 let selectedColor = null;
@@ -71,7 +72,11 @@ let paddingSize = 0;
 let imageRects = [];
 let displayedImages = [];
 let selectedImageIndex = null;
+let selectedImageIndexes = new Set();
 let allGapsSelected = false;
+let customOrder = false;
+let manualOrder = [];
+let draggedFileIndex = null;
 let eraseColor = null;
 let eraseMode = false;
 let history = [];
@@ -82,7 +87,9 @@ let finishAnimation = null;
 let lastBackgroundKey = null;
 let borderThickness = 0;
 let borderRadii = { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
+let imageBorderSettings = new Map();
 let copyFeedbackTimer = null;
+const historyToastTimers = new Map();
 let suppressCanvasClick = false;
 let scrollInertiaFrameId = null;
 let canvasDragState = null;
@@ -90,8 +97,9 @@ let hoveredImageIndex = null;
 let selectionPulseTimer = null;
 let highlightEnabled = false;
 
-const orderNames = { desc: "maior → menor", asc: "menor → maior" };
+const orderNames = { desc: "maior → menor", asc: "menor → maior", custom: "ordem personalizada" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
+const selectionBorderThickness = 3;
 
 imageInput.addEventListener("change", (event) => {
   addImages(event.target.files);
@@ -178,6 +186,7 @@ transparentToggle.addEventListener("click", () => {
 borderThicknessInput.addEventListener("input", () => {
   borderThickness = clamp(Number.parseInt(borderThicknessInput.value, 10) || 0, 0, 200);
   borderThicknessInput.value = borderThickness;
+  applyBorderControlsToSelection();
   renderComposition();
 });
 borderThicknessInput.addEventListener("change", commitHistory);
@@ -186,6 +195,7 @@ borderRadiusGeneralInput.addEventListener("input", () => {
   borderRadiusGeneralInput.value = radius;
   Object.keys(borderRadii).forEach((corner) => { borderRadii[corner] = radius; });
   updateBorderControls();
+  applyBorderControlsToSelection();
   renderComposition();
 });
 borderRadiusGeneralInput.addEventListener("change", commitHistory);
@@ -194,6 +204,7 @@ Object.entries(borderRadiusInputs).forEach(([corner, input]) => {
     borderRadii[corner] = clamp(Number.parseInt(input.value, 10) || 0, 0, 1000);
     input.value = borderRadii[corner];
     updateBorderControls();
+    applyBorderControlsToSelection();
     renderComposition();
   });
   input.addEventListener("change", commitHistory);
@@ -225,6 +236,8 @@ enterParameterHandlers.forEach((handler, input) => {
 orderButtons.forEach((button) => {
   button.addEventListener("click", () => {
     selectedOrder = button.dataset.order;
+    customOrder = false;
+    manualOrder = [];
     orderButtons.forEach((item) => {
       const isActive = item === button;
       item.classList.toggle("is-active", isActive);
@@ -253,10 +266,17 @@ applySpacingButton.addEventListener("click", applySpacing);
 applyPaddingButton.addEventListener("click", applyPadding);
 eraseColorButton.addEventListener("click", startColorErase);
 selectAllGapsButton.addEventListener("click", () => {
-  allGapsSelected = true;
-  selectedImageIndex = null;
+  if (allGapsSelected) {
+    allGapsSelected = false;
+    selectedImageIndex = null;
+    selectedImageIndexes.clear();
+  } else {
+    allGapsSelected = true;
+    selectedImageIndex = null;
+    selectedImageIndexes = new Set(displayedImages.map((_, index) => index));
+  }
   updateSpacingControls();
-  pulseSelectedImages();
+  if (allGapsSelected) pulseSelectedImages();
 });
 
 ["dragenter", "dragover"].forEach((eventName) => {
@@ -282,6 +302,10 @@ function addImages(fileCollection) {
   const readers = validFiles.map((file) => loadImage(file));
   Promise.all(readers).then((newImages) => {
     selectedImages = [...selectedImages, ...newImages];
+    manualOrder = [
+      ...manualOrder.filter((item) => selectedImages.includes(item)),
+      ...selectedImages.filter((item) => !manualOrder.includes(item))
+    ];
     commitHistory();
     renderComposition(true);
   });
@@ -294,6 +318,16 @@ function loadImage(file) {
     image.onerror = reject;
     image.src = URL.createObjectURL(file);
   });
+}
+
+function getOrderedImages() {
+  manualOrder = [
+    ...manualOrder.filter((item) => selectedImages.includes(item)),
+    ...selectedImages.filter((item) => !manualOrder.includes(item))
+  ];
+  if (customOrder) return manualOrder.filter((item) => selectedImages.includes(item));
+  const descending = [...selectedImages].sort((a, b) => b.image.height - a.image.height);
+  return selectedOrder === "asc" ? descending.reverse() : descending;
 }
 
 function renderComposition(shouldScroll = false) {
@@ -316,8 +350,7 @@ function renderComposition(shouldScroll = false) {
   const backgroundKey = `${selectedColor || "transparent"}:${colorOpacity}`;
   const shouldFadeBackground = lastBackgroundKey !== null && lastBackgroundKey !== backgroundKey;
   lastBackgroundKey = backgroundKey;
-  const descending = [...selectedImages].sort((a, b) => b.image.height - a.image.height);
-  const orderedImages = selectedOrder === "asc" ? descending.reverse() : descending;
+  const orderedImages = getOrderedImages();
   const nextRects = [];
   const renderableImages = new Map();
   const maxHeight = Math.max(...orderedImages.map(({ image }) => image.height));
@@ -342,7 +375,7 @@ function renderComposition(shouldScroll = false) {
       const renderableImage = getRenderableImage(image);
       renderableImages.set(image, renderableImage);
       const xPosition = Math.round(paddingSize + (maxWidth - image.width) / 2);
-      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image });
+      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image, borderSettings: cloneBorderSettings(getImageBorderSettings(image)) });
       yPosition += image.height + (gapSizes[index] || 0);
     });
   } else {
@@ -351,7 +384,7 @@ function renderComposition(shouldScroll = false) {
       const renderableImage = getRenderableImage(image);
       renderableImages.set(image, renderableImage);
       const yPosition = paddingSize + (selectedAlignment === "top" ? 0 : selectedAlignment === "bottom" ? maxHeight - image.height : Math.round((maxHeight - image.height) / 2));
-      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image });
+      nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image, borderSettings: cloneBorderSettings(getImageBorderSettings(image)) });
       xPosition += image.width + (gapSizes[index] || 0);
     });
   }
@@ -382,7 +415,7 @@ function drawHighlightBorders(rects) {
   if (!highlightEnabled) return;
   const selectedIndexes = allGapsSelected
     ? new Set(imageRects.map((rect) => rect.index))
-    : selectedImageIndex === null ? new Set() : new Set([selectedImageIndex]);
+    : new Set([...selectedImageIndexes, ...(selectedImageIndex === null ? [] : [selectedImageIndex])]);
   if (!selectedIndexes.size) return;
 
   context.save();
@@ -392,18 +425,11 @@ function drawHighlightBorders(rects) {
     if (!selectedIndexes.has(rect.index)) return;
     const width = rect.right - rect.left;
     const height = rect.bottom - rect.top;
-    const thickness = clamp(Math.max(3, borderThickness), 1, Math.min(width, height) / 2);
-    const inset = thickness / 2;
-    const outerRadii = clampCornerRadii(borderRadii, width, height);
-    const innerRadii = {
-      topLeft: Math.max(0, outerRadii.topLeft - inset),
-      topRight: Math.max(0, outerRadii.topRight - inset),
-      bottomRight: Math.max(0, outerRadii.bottomRight - inset),
-      bottomLeft: Math.max(0, outerRadii.bottomLeft - inset)
-    };
+    const thickness = clamp(selectionBorderThickness, 1, Math.min(width, height) / 2);
+    const outerRadii = clampCornerRadii(rect.borderSettings?.radii || borderRadii, width, height);
     context.globalAlpha = clamp(rect.opacity, 0, 1);
     context.lineWidth = thickness;
-    roundedRectPath(context, rect.left + inset, rect.top + inset, width - thickness, height - thickness, innerRadii);
+    roundedRectPath(context, rect.left, rect.top, width, height, outerRadii);
     context.stroke();
   });
   context.restore();
@@ -419,6 +445,7 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
       source: renderableImages.get(end.image),
       start,
       end,
+      borderSettings: end.borderSettings || getImageBorderSettings(end.image),
       startOpacity: previousByImage.has(end.image) ? 1 : 0,
       endOpacity: 1
     };
@@ -431,6 +458,7 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
         source: getRenderableImage(start.image),
         start,
         end: start,
+        borderSettings: start.borderSettings || getImageBorderSettings(start.image),
         startOpacity: 1,
         endOpacity: 0
       });
@@ -445,7 +473,7 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
       context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
       context.fillRect(0, 0, totalWidth, totalHeight);
     }
-    transitions.forEach(({ source, start, end, startOpacity, endOpacity }) => {
+    transitions.forEach(({ source, start, end, borderSettings, startOpacity, endOpacity }) => {
       const x = start.left + (end.left - start.left) * eased;
       const y = start.top + (end.top - start.top) * eased;
       const opacity = startOpacity + (endOpacity - startOpacity) * eased;
@@ -454,9 +482,9 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
       context.save();
       context.globalAlpha = opacity;
       context.filter = blur > .05 ? `blur(${blur.toFixed(2)}px)` : "none";
-      drawRenderableImage(source, x, y, end.right - end.left, end.bottom - end.top);
+      drawRenderableImage(source, x, y, end.right - end.left, end.bottom - end.top, borderSettings);
       context.restore();
-      drawnRects.push({ left: x, top: y, right: x + end.right - end.left, bottom: y + end.bottom - end.top, index: end.index, opacity });
+      drawnRects.push({ left: x, top: y, right: x + end.right - end.left, bottom: y + end.bottom - end.top, index: end.index, opacity, borderSettings });
     });
     drawHighlightBorders(drawnRects);
   };
@@ -511,9 +539,10 @@ function getRenderableImage(image) {
   return processedCanvas;
 }
 
-function drawRenderableImage(source, x, y, width, height) {
-  const thickness = clamp(borderThickness, 0, Math.min(width, height) / 2);
-  const outerRadii = clampCornerRadii(borderRadii, width, height);
+function drawRenderableImage(source, x, y, width, height, settings = null) {
+  const activeSettings = settings || { thickness: borderThickness, radii: borderRadii };
+  const thickness = clamp(activeSettings.thickness, 0, Math.min(width, height) / 2);
+  const outerRadii = clampCornerRadii(activeSettings.radii, width, height);
   const borderColorValue = borderColor ? colorWithOpacity(borderColor, borderOpacity) : "transparent";
   context.save();
   roundedRectPath(context, x, y, width, height, outerRadii);
@@ -565,7 +594,8 @@ function clampCornerRadii(radii, width, height) {
 }
 
 function updateLayoutLabel() {
-  layoutLabel.textContent = isVertical ? `${orderNames[selectedOrder]} · vertical` : `${orderNames[selectedOrder]} · ${alignmentNames[selectedAlignment]}`;
+  const orderLabel = customOrder ? orderNames.custom : orderNames[selectedOrder];
+  layoutLabel.textContent = isVertical ? `${orderLabel} · vertical` : `${orderLabel} · ${alignmentNames[selectedAlignment]}`;
 }
 
 function selectImageAt(event) {
@@ -591,7 +621,7 @@ function selectImageAt(event) {
     renderComposition();
     return;
   }
-  selectImageGap(target.index);
+  selectImageGap(target.index, event.ctrlKey || event.metaKey);
 }
 
 function handleCanvasClick(event) {
@@ -644,8 +674,8 @@ function updateSelectionLayer() {
   canvasSelectionLayer.innerHTML = imageRects.map((rect) => {
     const width = rect.right - rect.left;
     const height = rect.bottom - rect.top;
-    const radii = clampCornerRadii(borderRadii, width, height);
-    const selectionThickness = Math.max(3, borderThickness);
+    const radii = clampCornerRadii(rect.borderSettings?.radii || borderRadii, width, height);
+    const selectionThickness = selectionBorderThickness;
     const expansion = selectionThickness / 2;
     const selectionRadii = {
       topLeft: radii.topLeft + expansion,
@@ -653,11 +683,11 @@ function updateSelectionLayer() {
       bottomRight: radii.bottomRight + expansion,
       bottomLeft: radii.bottomLeft + expansion
     };
-    const isSelected = allGapsSelected || selectedImageIndex === rect.index;
+    const isSelected = allGapsSelected || selectedImageIndexes.has(rect.index) || selectedImageIndex === rect.index;
     const classes = ["canvas-selection"];
     if (hoveredImageIndex === rect.index) classes.push("is-hovered");
     if (isSelected) classes.push("is-selected");
-    return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left - expansion}px;top:${rect.top - expansion}px;width:${width + selectionThickness}px;height:${height + selectionThickness}px;border-radius:${selectionRadii.topLeft}px ${selectionRadii.topRight}px ${selectionRadii.bottomRight}px ${selectionRadii.bottomLeft}px;--selection-thickness:${selectionThickness}px;--selection-expansion:${expansion}px;--selection-radius:${radii.topLeft}px ${radii.topRight}px ${radii.bottomRight}px ${radii.bottomLeft}px"></div>`;
+    return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left - expansion}px;top:${rect.top - expansion}px;width:${width + selectionThickness}px;height:${height + selectionThickness}px;border-radius:${selectionRadii.topLeft}px ${selectionRadii.topRight}px ${selectionRadii.bottomRight}px ${selectionRadii.bottomLeft}px;--selection-thickness:${selectionThickness}px"></div>`;
   }).join("");
 }
 
@@ -893,25 +923,40 @@ function startColorErase() {
   eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
 }
 
-function selectImageGap(index) {
-  selectedImageIndex = index;
-  allGapsSelected = false;
+function selectImageGap(index, additive = false) {
+  if (allGapsSelected) {
+    allGapsSelected = false;
+    selectedImageIndexes.clear();
+  }
+  if (additive) {
+    if (selectedImageIndexes.has(index)) selectedImageIndexes.delete(index);
+    else selectedImageIndexes.add(index);
+    selectedImageIndex = selectedImageIndexes.has(index) ? index : [...selectedImageIndexes].at(-1) ?? null;
+  } else if (selectedImageIndexes.size === 1 && selectedImageIndexes.has(index)) {
+    selectedImageIndexes.clear();
+    selectedImageIndex = null;
+  } else {
+    selectedImageIndexes = new Set([index]);
+    selectedImageIndex = index;
+  }
+  if (selectedImageIndex !== null) syncBorderControlsFromSelection();
   updateSpacingControls();
-  pulseSelectedImages();
+  updateSelectionLayer();
+  if (selectedImageIndexes.size) pulseSelectedImages();
 }
 
 function updateSpacingControls() {
   const hasImages = selectedImages.length > 0;
   const hasGaps = selectedImages.length > 1;
-  const hasHighlightSelection = selectedImageIndex !== null || allGapsSelected;
-  if (!hasImages || !hasHighlightSelection) highlightEnabled = false;
   spacingInput.disabled = !hasGaps;
   eraseColorButton.disabled = !hasImages;
-  deleteImageButton.disabled = !hasImages || selectedImageIndex === null;
+  const hasSelection = allGapsSelected || selectedImageIndexes.size > 0 || selectedImageIndex !== null;
+  deleteImageButton.disabled = !hasImages || !hasSelection;
   selectAllGapsButton.disabled = !hasImages;
   applySpacingButton.disabled = !hasGaps || (selectedImageIndex === null && !allGapsSelected) || selectedImageIndex >= selectedImages.length - 1;
   applyPaddingButton.disabled = !hasImages;
-  highlightToggle.disabled = !hasImages || !hasHighlightSelection;
+  borderParameterInputs.forEach((input) => { input.disabled = !hasImages || !hasSelection; });
+  highlightToggle.disabled = !hasImages;
   highlightToggle.classList.toggle("is-active", highlightEnabled);
   highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   selectAllGapsButton.classList.toggle("is-active", allGapsSelected);
@@ -939,7 +984,8 @@ function updateSpacingControls() {
     paddingInput.value = paddingSize;
   }
   fileList.querySelectorAll(".file-item").forEach((item) => {
-    item.classList.toggle("is-selected", Number(item.dataset.imageIndex) === selectedImageIndex);
+    const index = Number(item.dataset.imageIndex);
+    item.classList.toggle("is-selected", allGapsSelected || selectedImageIndexes.has(index) || index === selectedImageIndex);
   });
 }
 
@@ -964,17 +1010,28 @@ function applyPadding() {
 }
 
 function deleteSelectedImage() {
-  if (selectedImageIndex === null || !displayedImages[selectedImageIndex]) return;
-  const imageToDelete = displayedImages[selectedImageIndex];
-  const removedIndex = selectedImageIndex;
-  const previousGaps = [...gapSizes];
-  selectedImages = selectedImages.filter((item) => item !== imageToDelete);
-  if (previousGaps.length) {
-    if (removedIndex === 0) gapSizes = previousGaps.slice(1);
-    else if (removedIndex === previousGaps.length) gapSizes = previousGaps.slice(0, -1);
-    else gapSizes = [...previousGaps.slice(0, removedIndex - 1), previousGaps[removedIndex - 1] + previousGaps[removedIndex], ...previousGaps.slice(removedIndex + 1)];
+  const indexes = allGapsSelected
+    ? displayedImages.map((_, index) => index)
+    : [...new Set([...selectedImageIndexes, ...(selectedImageIndex === null ? [] : [selectedImageIndex])])].sort((a, b) => a - b);
+  if (!indexes.length) return;
+
+  const indexSet = new Set(indexes);
+  const imagesToDelete = displayedImages.filter((_, index) => indexSet.has(index));
+  const remainingImages = displayedImages.filter((_, index) => !indexSet.has(index));
+  const nextGaps = [];
+  for (let index = 0; index < remainingImages.length - 1; index += 1) {
+    const from = displayedImages.indexOf(remainingImages[index]);
+    const to = displayedImages.indexOf(remainingImages[index + 1]);
+    let gap = 0;
+    for (let gapIndex = from; gapIndex < to; gapIndex += 1) gap += gapSizes[gapIndex] || 0;
+    nextGaps.push(gap);
   }
+  imagesToDelete.forEach(({ image }) => imageBorderSettings.delete(image));
+  selectedImages = selectedImages.filter((item) => !imagesToDelete.includes(item));
+  manualOrder = manualOrder.filter((item) => selectedImages.includes(item));
+  gapSizes = nextGaps;
   selectedImageIndex = null;
+  selectedImageIndexes.clear();
   allGapsSelected = false;
   eraseMode = false;
   canvasScroll.classList.remove("is-eyedropper");
@@ -1083,6 +1140,42 @@ function syncHsvFromActiveColor() {
   selectedValue = hsv.v;
 }
 
+function cloneBorderSettings(settings = {}) {
+  return {
+    thickness: clamp(Number(settings.thickness) || 0, 0, 200),
+    radii: {
+      topLeft: clamp(Number(settings.radii?.topLeft) || 0, 0, 1000),
+      bottomLeft: clamp(Number(settings.radii?.bottomLeft) || 0, 0, 1000),
+      bottomRight: clamp(Number(settings.radii?.bottomRight) || 0, 0, 1000),
+      topRight: clamp(Number(settings.radii?.topRight) || 0, 0, 1000)
+    }
+  };
+}
+
+function getImageBorderSettings(image) {
+  if (!imageBorderSettings.has(image)) imageBorderSettings.set(image, cloneBorderSettings());
+  return imageBorderSettings.get(image);
+}
+
+function getSelectedBorderTargets() {
+  if (allGapsSelected) return displayedImages.map(({ image }) => image);
+  const indexes = new Set([...selectedImageIndexes, ...(selectedImageIndex === null ? [] : [selectedImageIndex])]);
+  return [...indexes].map((index) => displayedImages[index]?.image).filter(Boolean);
+}
+
+function applyBorderControlsToSelection() {
+  const settings = cloneBorderSettings({ thickness: borderThickness, radii: borderRadii });
+  getSelectedBorderTargets().forEach((image) => imageBorderSettings.set(image, cloneBorderSettings(settings)));
+}
+
+function syncBorderControlsFromSelection() {
+  if (selectedImageIndex === null || !displayedImages[selectedImageIndex]) return;
+  const settings = getImageBorderSettings(displayedImages[selectedImageIndex].image);
+  borderThickness = settings.thickness;
+  borderRadii = { ...settings.radii };
+  updateBorderControls();
+}
+
 function updateBorderControls() {
   borderThicknessInput.value = borderThickness;
   const radii = Object.values(borderRadii);
@@ -1168,7 +1261,7 @@ function clamp(value, min, max) {
 
 function renderFileList(orderedImages) {
   fileList.innerHTML = orderedImages.map(({ file, image }, index) => `
-    <button class="file-item" type="button" data-image-index="${index}">
+    <button class="file-item" type="button" draggable="true" data-image-index="${index}">
       <img class="file-thumb" src="${image.src}" alt="" />
       <div class="file-details">
         <span class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
@@ -1178,8 +1271,67 @@ function renderFileList(orderedImages) {
     </button>
   `).join("");
   fileList.querySelectorAll(".file-item").forEach((item) => {
-    item.addEventListener("click", () => selectImageGap(Number(item.dataset.imageIndex)));
+    item.addEventListener("click", (event) => selectImageGap(Number(item.dataset.imageIndex), event.ctrlKey || event.metaKey));
+    item.addEventListener("dragstart", handleFileDragStart);
+    item.addEventListener("dragover", handleFileDragOver);
+    item.addEventListener("dragleave", handleFileDragLeave);
+    item.addEventListener("drop", handleFileDrop);
+    item.addEventListener("dragend", handleFileDragEnd);
   });
+}
+
+function handleFileDragStart(event) {
+  draggedFileIndex = Number(event.currentTarget.dataset.imageIndex);
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", String(draggedFileIndex));
+  event.currentTarget.classList.add("is-dragging");
+}
+
+function handleFileDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  if (Number(event.currentTarget.dataset.imageIndex) !== draggedFileIndex) event.currentTarget.classList.add("is-drop-target");
+}
+
+function handleFileDragLeave(event) {
+  event.currentTarget.classList.remove("is-drop-target");
+}
+
+function handleFileDrop(event) {
+  event.preventDefault();
+  const targetIndex = Number(event.currentTarget.dataset.imageIndex);
+  event.currentTarget.classList.remove("is-drop-target");
+  if (draggedFileIndex === null || draggedFileIndex === targetIndex) return;
+  reorderImages(draggedFileIndex, targetIndex);
+}
+
+function handleFileDragEnd() {
+  draggedFileIndex = null;
+  fileList.querySelectorAll(".file-item").forEach((item) => item.classList.remove("is-dragging", "is-drop-target"));
+}
+
+function reorderImages(fromIndex, toIndex) {
+  const orderedImages = [...getOrderedImages()];
+  const selectedObjects = allGapsSelected
+    ? new Set(orderedImages)
+    : new Set([...selectedImageIndexes, ...(selectedImageIndex === null ? [] : [selectedImageIndex])].map((index) => orderedImages[index]).filter(Boolean));
+  const primaryObject = selectedImageIndex === null ? null : orderedImages[selectedImageIndex];
+  const [movedImage] = orderedImages.splice(fromIndex, 1);
+  orderedImages.splice(toIndex, 0, movedImage);
+  manualOrder = orderedImages;
+  customOrder = true;
+  selectedImageIndexes = new Set(orderedImages.map((image, index) => selectedObjects.has(image) ? index : -1).filter((index) => index >= 0));
+  selectedImageIndex = primaryObject ? orderedImages.indexOf(primaryObject) : null;
+  orderButtons.forEach((button) => {
+    button.classList.remove("is-active");
+    button.setAttribute("aria-checked", "false");
+  });
+  updateLayoutLabel();
+  commitHistory();
+  renderComposition();
+  updateSpacingControls();
+  updateSelectionLayer();
+  pulseSelectedImages();
 }
 
 async function exportComposition() {
@@ -1238,14 +1390,41 @@ function showCopyFeedback(label) {
 }
 
 function showHistoryToast(action) {
-  const toast = document.createElement("div");
-  toast.className = `history-toast ${action}`;
+  let toast = historyToastStack.querySelector(`[data-history-action="${action}"]`);
+  const wasExisting = Boolean(toast);
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = `history-toast ${action}`;
+    toast.dataset.historyAction = action;
+    toast.dataset.count = "0";
+    toast.innerHTML = `<span class="history-toast-icon">${action === "undo" ? "↶" : "↷"}</span><span class="history-toast-count" aria-hidden="true"></span>`;
+    if (action === "undo") historyToastStack.prepend(toast);
+    else historyToastStack.appendChild(toast);
+  }
+  const count = Number(toast.dataset.count || 0) + 1;
+  toast.dataset.count = String(count);
+  const countBadge = toast.querySelector(".history-toast-count");
+  countBadge.textContent = count > 1 ? String(count) : "";
+  countBadge.classList.toggle("is-visible", count > 1);
   toast.setAttribute("role", "status");
-  toast.setAttribute("aria-label", action === "undo" ? "Desfeito" : "Refeito");
-  toast.textContent = action === "undo" ? "↶" : "↷";
-  historyToastStack.appendChild(toast);
-  window.setTimeout(() => toast.classList.add("is-leaving"), 1050);
-  window.setTimeout(() => toast.remove(), 1450);
+  toast.setAttribute("aria-label", `${action === "undo" ? "Desfeito" : "Refeito"}${count > 1 ? `, ${count} vezes` : ""}`);
+  toast.classList.remove("is-leaving");
+  if (wasExisting) {
+    toast.classList.remove("is-refreshing");
+    void toast.offsetWidth;
+    toast.classList.add("is-refreshing");
+  }
+  const previousTimers = historyToastTimers.get(action);
+  if (previousTimers) {
+    window.clearTimeout(previousTimers.leave);
+    window.clearTimeout(previousTimers.remove);
+  }
+  const leave = window.setTimeout(() => toast.classList.add("is-leaving"), 1050);
+  const remove = window.setTimeout(() => {
+    toast.remove();
+    historyToastTimers.delete(action);
+  }, 1450);
+  historyToastTimers.set(action, { leave, remove });
 }
 
 function captureState() {
@@ -1259,9 +1438,12 @@ function captureState() {
     selectedSaturation,
     selectedValue,
     selectedOrder,
+    customOrder,
+    manualOrder: [...manualOrder],
     selectedAlignment,
     isVertical,
     highlightEnabled,
+    imageBorderSettings: selectedImages.map(({ image }) => ({ image, settings: cloneBorderSettings(getImageBorderSettings(image)) })),
     gapSizes: [...gapSizes],
     paddingSize,
     borderThickness,
@@ -1273,7 +1455,12 @@ function captureState() {
 function statesMatch(first, second) {
   if (!first || !second) return false;
   const sameImages = first.selectedImages.length === second.selectedImages.length && first.selectedImages.every((image, index) => image === second.selectedImages[index]);
-  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
+  const firstBorders = (first.imageBorderSettings || []).map(({ settings }) => settings);
+  const secondBorders = (second.imageBorderSettings || []).map(({ settings }) => settings);
+  const firstOrder = first.manualOrder || first.selectedImages;
+  const secondOrder = second.manualOrder || second.selectedImages;
+  const sameManualOrder = firstOrder.length === secondOrder.length && firstOrder.every((image, index) => image === secondOrder[index]);
+  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.customOrder === second.customOrder && sameManualOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && JSON.stringify(firstBorders) === JSON.stringify(secondBorders) && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
 }
 
 function commitHistory() {
@@ -1312,15 +1499,23 @@ function restoreState(snapshot) {
   selectedSaturation = snapshot.selectedSaturation;
   selectedValue = snapshot.selectedValue;
   selectedOrder = snapshot.selectedOrder;
+  customOrder = Boolean(snapshot.customOrder);
+  manualOrder = snapshot.manualOrder ? [...snapshot.manualOrder] : [...selectedImages];
   selectedAlignment = snapshot.selectedAlignment;
   isVertical = snapshot.isVertical;
   highlightEnabled = Boolean(snapshot.highlightEnabled);
+  const fallbackBorderSettings = { thickness: snapshot.borderThickness, radii: snapshot.borderRadii };
+  imageBorderSettings = new Map((snapshot.imageBorderSettings || []).map(({ image, settings }) => [image, cloneBorderSettings(settings)]));
+  selectedImages.forEach(({ image }) => {
+    if (!imageBorderSettings.has(image)) imageBorderSettings.set(image, cloneBorderSettings(fallbackBorderSettings));
+  });
   gapSizes = [...snapshot.gapSizes];
   paddingSize = snapshot.paddingSize;
   borderThickness = typeof snapshot.borderThickness === "number" ? snapshot.borderThickness : 0;
   borderRadii = snapshot.borderRadii ? { ...snapshot.borderRadii } : { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
   eraseColor = snapshot.eraseColor ? { ...snapshot.eraseColor } : null;
   selectedImageIndex = null;
+  selectedImageIndexes.clear();
   allGapsSelected = false;
   eraseMode = false;
   canvasScroll.classList.remove("is-eyedropper");
@@ -1332,7 +1527,7 @@ function restoreState(snapshot) {
   highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   alignButtons.forEach((button) => { button.disabled = isVertical; });
   orderButtons.forEach((button) => {
-    const isActive = button.dataset.order === selectedOrder;
+    const isActive = !customOrder && button.dataset.order === selectedOrder;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-checked", String(isActive));
   });
