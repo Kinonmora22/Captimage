@@ -11,6 +11,7 @@ const imageCount = document.getElementById("image-count");
 const compositionSize = document.getElementById("composition-size");
 const layoutLabel = document.getElementById("layout-label");
 const addMoreButton = document.getElementById("add-more");
+const highlightToggle = document.getElementById("highlight-toggle");
 const verticalToggle = document.getElementById("vertical-toggle");
 const exportButton = document.getElementById("export-button");
 const copyButton = document.getElementById("copy-button");
@@ -87,6 +88,7 @@ let scrollInertiaFrameId = null;
 let canvasDragState = null;
 let hoveredImageIndex = null;
 let selectionPulseTimer = null;
+let highlightEnabled = false;
 
 const orderNames = { desc: "maior → menor", asc: "menor → maior" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
@@ -111,6 +113,14 @@ document.addEventListener("keydown", (event) => {
 });
 
 addMoreButton.addEventListener("click", () => imageInput.click());
+highlightToggle.addEventListener("click", () => {
+  if (highlightToggle.disabled) return;
+  highlightEnabled = !highlightEnabled;
+  highlightToggle.classList.toggle("is-active", highlightEnabled);
+  highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
+  commitHistory();
+  renderComposition();
+});
 verticalToggle.addEventListener("click", () => {
   isVertical = !isVertical;
   verticalToggle.classList.toggle("is-active", isVertical);
@@ -368,6 +378,37 @@ function renderComposition(shouldScroll = false) {
   if (shouldScroll) workspace.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function drawHighlightBorders(rects) {
+  if (!highlightEnabled) return;
+  const selectedIndexes = allGapsSelected
+    ? new Set(imageRects.map((rect) => rect.index))
+    : selectedImageIndex === null ? new Set() : new Set([selectedImageIndex]);
+  if (!selectedIndexes.size) return;
+
+  context.save();
+  context.strokeStyle = isDarkTheme ? "#ed7926" : "#3c6d2e";
+  context.lineJoin = "round";
+  rects.forEach((rect) => {
+    if (!selectedIndexes.has(rect.index)) return;
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    const thickness = clamp(Math.max(3, borderThickness), 1, Math.min(width, height) / 2);
+    const inset = thickness / 2;
+    const outerRadii = clampCornerRadii(borderRadii, width, height);
+    const innerRadii = {
+      topLeft: Math.max(0, outerRadii.topLeft - inset),
+      topRight: Math.max(0, outerRadii.topRight - inset),
+      bottomRight: Math.max(0, outerRadii.bottomRight - inset),
+      bottomLeft: Math.max(0, outerRadii.bottomLeft - inset)
+    };
+    context.globalAlpha = clamp(rect.opacity, 0, 1);
+    context.lineWidth = thickness;
+    roundedRectPath(context, rect.left + inset, rect.top + inset, width - thickness, height - thickness, innerRadii);
+    context.stroke();
+  });
+  context.restore();
+}
+
 function animateComposition(previousRects, nextRects, renderableImages, totalWidth, totalHeight) {
   const previousByImage = new Map(previousRects.map((rect) => [rect.image, rect]));
   const nextImages = new Set(nextRects.map((rect) => rect.image));
@@ -398,6 +439,7 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
 
   const drawFrame = (progress) => {
     const eased = 1 - Math.pow(1 - progress, 3);
+    const drawnRects = [];
     context.clearRect(0, 0, totalWidth, totalHeight);
     if (selectedColor && colorOpacity > 0) {
       context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
@@ -414,7 +456,9 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
       context.filter = blur > .05 ? `blur(${blur.toFixed(2)}px)` : "none";
       drawRenderableImage(source, x, y, end.right - end.left, end.bottom - end.top);
       context.restore();
+      drawnRects.push({ left: x, top: y, right: x + end.right - end.left, bottom: y + end.bottom - end.top, index: end.index, opacity });
     });
+    drawHighlightBorders(drawnRects);
   };
 
   if (!previousRects.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -533,7 +577,7 @@ function selectImageAt(event) {
   const y = (event.clientY - bounds.top) * scaleY;
   const target = imageRects.find((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
   if (!target) {
-    if (eraseMode) eraseStatus.textContent = "Clique dentro de uma imagem para escolher a cor.";
+    if (eraseMode) eraseStatus.textContent = "Cor apagada: ()";
     return;
   }
   if (eraseMode) {
@@ -542,7 +586,7 @@ function selectImageAt(event) {
     eraseMode = false;
     eraseColorButton.classList.remove("is-active");
     canvasScroll.classList.remove("is-eyedropper");
-    eraseStatus.textContent = `cor selecionada: ${rgbToHex(eraseColor).toUpperCase()}`;
+    eraseStatus.textContent = `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})`;
     commitHistory();
     renderComposition();
     return;
@@ -598,12 +642,22 @@ function pulseSelectedImages() {
 function updateSelectionLayer() {
   if (!canvasSelectionLayer) return;
   canvasSelectionLayer.innerHTML = imageRects.map((rect) => {
-    const radii = clampCornerRadii(borderRadii, rect.right - rect.left, rect.bottom - rect.top);
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    const radii = clampCornerRadii(borderRadii, width, height);
+    const selectionThickness = Math.max(3, borderThickness);
+    const expansion = selectionThickness / 2;
+    const selectionRadii = {
+      topLeft: radii.topLeft + expansion,
+      topRight: radii.topRight + expansion,
+      bottomRight: radii.bottomRight + expansion,
+      bottomLeft: radii.bottomLeft + expansion
+    };
     const isSelected = allGapsSelected || selectedImageIndex === rect.index;
     const classes = ["canvas-selection"];
     if (hoveredImageIndex === rect.index) classes.push("is-hovered");
     if (isSelected) classes.push("is-selected");
-    return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left}px;top:${rect.top}px;width:${rect.right - rect.left}px;height:${rect.bottom - rect.top}px;border-radius:${radii.topLeft}px ${radii.topRight}px ${radii.bottomRight}px ${radii.bottomLeft}px;--selection-thickness:${Math.max(3, borderThickness)}px"></div>`;
+    return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left - expansion}px;top:${rect.top - expansion}px;width:${width + selectionThickness}px;height:${height + selectionThickness}px;border-radius:${selectionRadii.topLeft}px ${selectionRadii.topRight}px ${selectionRadii.bottomRight}px ${selectionRadii.bottomLeft}px;--selection-thickness:${selectionThickness}px;--selection-expansion:${expansion}px;--selection-radius:${radii.topLeft}px ${radii.topRight}px ${radii.bottomRight}px ${radii.bottomLeft}px"></div>`;
   }).join("");
 }
 
@@ -760,7 +814,7 @@ function beginCanvasDrag(event) {
     state.lastX = state.currentX;
     state.lastY = state.currentY;
     state.lastTime = performance.now();
-  }, 180);
+  }, 100);
 }
 
 function moveCanvasDrag(event) {
@@ -836,7 +890,7 @@ function startColorErase() {
   eraseMode = !eraseMode;
   eraseColorButton.classList.toggle("is-active", eraseMode);
   canvasScroll.classList.toggle("is-eyedropper", eraseMode);
-  eraseStatus.textContent = eraseMode ? "clique na cor de uma imagem na prévia" : "selecione uma cor dentro da prévia";
+  eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
 }
 
 function selectImageGap(index) {
@@ -849,12 +903,17 @@ function selectImageGap(index) {
 function updateSpacingControls() {
   const hasImages = selectedImages.length > 0;
   const hasGaps = selectedImages.length > 1;
+  const hasHighlightSelection = selectedImageIndex !== null || allGapsSelected;
+  if (!hasImages || !hasHighlightSelection) highlightEnabled = false;
   spacingInput.disabled = !hasGaps;
   eraseColorButton.disabled = !hasImages;
   deleteImageButton.disabled = !hasImages || selectedImageIndex === null;
   selectAllGapsButton.disabled = !hasImages;
   applySpacingButton.disabled = !hasGaps || (selectedImageIndex === null && !allGapsSelected) || selectedImageIndex >= selectedImages.length - 1;
   applyPaddingButton.disabled = !hasImages;
+  highlightToggle.disabled = !hasImages || !hasHighlightSelection;
+  highlightToggle.classList.toggle("is-active", highlightEnabled);
+  highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   selectAllGapsButton.classList.toggle("is-active", allGapsSelected);
   if (allGapsSelected) {
     spacingStatus.textContent = "Todos os espaços foram selecionados. O padding é geral.";
@@ -1123,13 +1182,32 @@ function renderFileList(orderedImages) {
   });
 }
 
-function exportComposition() {
+async function exportComposition() {
   if (!selectedImages.length) return;
   stopCurrentAnimation();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) return;
+
+  if (typeof window.showSaveFilePicker === "function") {
+    try {
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: "imagem-em-fila.png",
+        types: [{ description: "Imagem PNG", accept: { "image/png": [".png"] } }]
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
   const link = document.createElement("a");
   link.download = "imagem-em-fila.png";
-  link.href = canvas.toDataURL("image/png");
+  link.href = URL.createObjectURL(blob);
   link.click();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 async function copyComposition() {
@@ -1183,6 +1261,7 @@ function captureState() {
     selectedOrder,
     selectedAlignment,
     isVertical,
+    highlightEnabled,
     gapSizes: [...gapSizes],
     paddingSize,
     borderThickness,
@@ -1194,7 +1273,7 @@ function captureState() {
 function statesMatch(first, second) {
   if (!first || !second) return false;
   const sameImages = first.selectedImages.length === second.selectedImages.length && first.selectedImages.every((image, index) => image === second.selectedImages[index]);
-  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
+  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
 }
 
 function commitHistory() {
@@ -1235,6 +1314,7 @@ function restoreState(snapshot) {
   selectedOrder = snapshot.selectedOrder;
   selectedAlignment = snapshot.selectedAlignment;
   isVertical = snapshot.isVertical;
+  highlightEnabled = Boolean(snapshot.highlightEnabled);
   gapSizes = [...snapshot.gapSizes];
   paddingSize = snapshot.paddingSize;
   borderThickness = typeof snapshot.borderThickness === "number" ? snapshot.borderThickness : 0;
@@ -1245,9 +1325,11 @@ function restoreState(snapshot) {
   eraseMode = false;
   canvasScroll.classList.remove("is-eyedropper");
   eraseColorButton.classList.remove("is-active");
-  eraseStatus.textContent = eraseColor ? `cor selecionada: ${rgbToHex(eraseColor).toUpperCase()}` : "selecione uma cor dentro da prévia";
+  eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
   verticalToggle.classList.toggle("is-active", isVertical);
   verticalToggle.setAttribute("aria-pressed", String(isVertical));
+  highlightToggle.classList.toggle("is-active", highlightEnabled);
+  highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   alignButtons.forEach((button) => { button.disabled = isVertical; });
   orderButtons.forEach((button) => {
     const isActive = button.dataset.order === selectedOrder;
