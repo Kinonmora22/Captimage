@@ -124,6 +124,9 @@ document.addEventListener("paste", (event) => {
   addImages(pastedImages);
 });
 
+document.addEventListener("pointerup", handleGlobalPointerRelease);
+document.addEventListener("pointercancel", handleGlobalPointerRelease);
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Delete" && !isTypingTarget(event.target) && !deleteImageButton.disabled) {
     event.preventDefault();
@@ -981,8 +984,6 @@ function beginCanvasReorder(event) {
   canvasReorderState = { pointerId: event.pointerId, sourceIndex: target.index, moved: false };
   reorderHoverIndex = target.index;
   canvasScroll.classList.add("is-reordering");
-  event.preventDefault();
-  canvasScroll.setPointerCapture?.(event.pointerId);
   updateSelectionLayer();
 }
 
@@ -990,12 +991,15 @@ function moveCanvasReorder(event) {
   if (!canvasReorderState || canvasReorderState.pointerId !== event.pointerId) return;
   const targetIndex = getReorderTargetIndex(event);
   if (targetIndex === null) return;
-  if (targetIndex !== canvasReorderState.sourceIndex) canvasReorderState.moved = true;
+  if (targetIndex !== canvasReorderState.sourceIndex && !canvasReorderState.moved) {
+    canvasReorderState.moved = true;
+    canvasScroll.setPointerCapture?.(event.pointerId);
+  }
   if (targetIndex !== reorderHoverIndex) {
     reorderHoverIndex = targetIndex;
     updateSelectionLayer();
   }
-  event.preventDefault();
+  if (canvasReorderState.moved) event.preventDefault();
 }
 
 function finishCanvasReorder(event) {
@@ -1006,7 +1010,10 @@ function finishCanvasReorder(event) {
   canvasReorderState = null;
   reorderHoverIndex = null;
   canvasScroll.classList.remove("is-reordering");
-  if (canvasScroll.hasPointerCapture?.(state.pointerId)) canvasScroll.releasePointerCapture(state.pointerId);
+  const rightButtonStillDown = event?.type === "pointerup"
+    && (event.buttons & 2) === 2
+    || Boolean(canvasDragState && canvasDragState.pointerId === state.pointerId);
+  if (!rightButtonStillDown && canvasScroll.hasPointerCapture?.(state.pointerId)) canvasScroll.releasePointerCapture(state.pointerId);
   updateSelectionLayer();
   if (!state.moved || targetIndex === null || targetIndex === state.sourceIndex) return;
   suppressCanvasClick = true;
@@ -1027,6 +1034,10 @@ function handleWheelScroll(event) {
 
 function beginCanvasDrag(event) {
   if (event.button !== 2 || canvasScroll.classList.contains("is-eyedropper")) return;
+  createCanvasDragState(event);
+}
+
+function createCanvasDragState(event, armed = false) {
   cancelScrollInertia();
   const state = canvasDragState = {
     pointerId: event.pointerId,
@@ -1038,9 +1049,10 @@ function beginCanvasDrag(event) {
     velocityX: 0,
     velocityY: 0,
     moved: false,
-    armed: false,
+    armed,
     holdTimer: null
   };
+  if (armed) return;
   state.holdTimer = window.setTimeout(() => {
     if (canvasDragState !== state) return;
     state.armed = true;
@@ -1052,6 +1064,13 @@ function beginCanvasDrag(event) {
 
 function moveCanvasDrag(event) {
   updateHoveredImage(event);
+  if (canvasDragState && event.buttons !== undefined && (event.buttons & 2) !== 2) {
+    finishCanvasDrag({ pointerId: event.pointerId, type: "pointerup", button: 2, buttons: event.buttons });
+    return;
+  }
+  if (!canvasDragState && (event.buttons & 2) === 2 && !canvasScroll.classList.contains("is-eyedropper")) {
+    createCanvasDragState(event, true);
+  }
   if (!canvasDragState || canvasDragState.pointerId !== event.pointerId) return;
   canvasDragState.currentX = event.clientX;
   canvasDragState.currentY = event.clientY;
@@ -1096,6 +1115,10 @@ function finishCanvasDrag(event) {
   canvasDragState = null;
   window.clearTimeout(state.holdTimer);
   canvasScroll.classList.remove("is-dragging-scroll");
+  const leftButtonStillDown = event?.type === "pointerup"
+    && (event.buttons & 1) === 1
+    || Boolean(canvasReorderState && canvasReorderState.pointerId === state.pointerId);
+  if (!leftButtonStillDown && canvasScroll.hasPointerCapture?.(state.pointerId)) canvasScroll.releasePointerCapture(state.pointerId);
   if (state.moved) {
     startScrollInertia(
       () => ({ x: canvasScroll.scrollLeft, y: canvasScroll.scrollTop }),
@@ -1104,6 +1127,11 @@ function finishCanvasDrag(event) {
       state.velocityY
     );
   }
+}
+
+function handleGlobalPointerRelease(event) {
+  finishCanvasReorder(event);
+  finishCanvasDrag(event);
 }
 
 function handleCanvasPointerLeave() {
