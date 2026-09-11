@@ -35,6 +35,7 @@ const blueInput = document.getElementById("blue-input");
 const transparencySlider = document.getElementById("transparency-slider");
 const transparencyValue = document.getElementById("transparency-value");
 const eraseColorButton = document.getElementById("erase-color-button");
+const eraseBorderButton = document.getElementById("erase-border-button");
 const rescaleButton = document.getElementById("rescale-button");
 const eraseStatus = document.getElementById("erase-status");
 const orderButtons = [...document.querySelectorAll("[data-order]")];
@@ -74,12 +75,14 @@ let imageRects = [];
 let displayedImages = [];
 let selectedImageIndex = null;
 let selectedImageIndexes = new Set();
+let selectionAnchorIndex = null;
 let allGapsSelected = false;
 let customOrder = false;
 let manualOrder = [];
 let draggedFileIndex = null;
 let eraseColor = null;
 let eraseMode = false;
+let eraseBorders = false;
 let history = [];
 let historyIndex = -1;
 let isDarkTheme = true;
@@ -266,15 +269,18 @@ alignButtons.forEach((button) => {
 applySpacingButton.addEventListener("click", applySpacing);
 applyPaddingButton.addEventListener("click", applyPadding);
 eraseColorButton.addEventListener("click", startColorErase);
+eraseBorderButton.addEventListener("click", toggleBorderErase);
 rescaleButton.addEventListener("click", rescaleImagesToVisibleBounds);
 selectAllGapsButton.addEventListener("click", () => {
   if (allGapsSelected) {
     allGapsSelected = false;
     selectedImageIndex = null;
     selectedImageIndexes.clear();
+    selectionAnchorIndex = null;
   } else {
     allGapsSelected = true;
     selectedImageIndex = null;
+    selectionAnchorIndex = null;
     selectedImageIndexes = new Set(displayedImages.map((_, index) => index));
   }
   updateSpacingControls();
@@ -520,7 +526,7 @@ function stopCurrentAnimation() {
 }
 
 function getRenderableImage(image) {
-  if (!eraseColor) return image;
+  if (!eraseColor && !eraseBorders) return image;
   const processedCanvas = document.createElement("canvas");
   processedCanvas.width = image.width;
   processedCanvas.height = image.height;
@@ -528,17 +534,69 @@ function getRenderableImage(image) {
   processedContext.drawImage(image, 0, 0);
   const pixels = processedContext.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
   const data = pixels.data;
-  const tolerance = 0;
-  for (let index = 0; index < data.length; index += 4) {
-    const colorDistance = Math.max(
-      Math.abs(data[index] - eraseColor.r),
-      Math.abs(data[index + 1] - eraseColor.g),
-      Math.abs(data[index + 2] - eraseColor.b)
-    );
-    if (data[index + 3] > 0 && colorDistance <= tolerance) data[index + 3] = 0;
+  if (eraseColor) {
+    const tolerance = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const colorDistance = Math.max(
+        Math.abs(data[index] - eraseColor.r),
+        Math.abs(data[index + 1] - eraseColor.g),
+        Math.abs(data[index + 2] - eraseColor.b)
+      );
+      if (data[index + 3] > 0 && colorDistance <= tolerance) data[index + 3] = 0;
+    }
   }
   processedContext.putImageData(pixels, 0, 0);
+  if (eraseBorders) removeConnectedEdgeColor(processedCanvas);
   return processedCanvas;
+}
+
+function removeConnectedEdgeColor(sourceCanvas) {
+  const width = sourceCanvas.width;
+  const height = sourceCanvas.height;
+  if (!width || !height) return;
+  const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  const pixels = sourceContext.getImageData(0, 0, width, height);
+  const data = pixels.data;
+  const corners = [0, (width - 1) * 4, ((height - 1) * width) * 4, ((height * width) - 1) * 4];
+  if (corners.some((offset) => data[offset + 3] === 0)) return;
+  const reference = { r: data[corners[0]], g: data[corners[0] + 1], b: data[corners[0] + 2] };
+  const tolerance = 4;
+  const matchesReference = (pixelIndex) => {
+    const offset = pixelIndex * 4;
+    return data[offset + 3] > 0
+      && Math.max(Math.abs(data[offset] - reference.r), Math.abs(data[offset + 1] - reference.g), Math.abs(data[offset + 2] - reference.b)) <= tolerance;
+  };
+  if (corners.some((offset) => Math.max(Math.abs(data[offset] - reference.r), Math.abs(data[offset + 1] - reference.g), Math.abs(data[offset + 2] - reference.b)) > tolerance)) return;
+
+  const visited = new Uint8Array(width * height);
+  const queue = new Int32Array(width * height);
+  let queueStart = 0;
+  let queueEnd = 0;
+  const enqueue = (pixelIndex) => {
+    if (visited[pixelIndex] || !matchesReference(pixelIndex)) return;
+    visited[pixelIndex] = 1;
+    queue[queueEnd] = pixelIndex;
+    queueEnd += 1;
+  };
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    enqueue(y * width);
+    enqueue(y * width + width - 1);
+  }
+  while (queueStart < queueEnd) {
+    const pixelIndex = queue[queueStart];
+    queueStart += 1;
+    data[pixelIndex * 4 + 3] = 0;
+    const x = pixelIndex % width;
+    if (x > 0) enqueue(pixelIndex - 1);
+    if (x < width - 1) enqueue(pixelIndex + 1);
+    if (pixelIndex >= width) enqueue(pixelIndex - width);
+    if (pixelIndex < width * (height - 1)) enqueue(pixelIndex + width);
+  }
+  sourceContext.putImageData(pixels, 0, 0);
 }
 
 function cropTransparentBounds(source) {
@@ -683,7 +741,7 @@ function selectImageAt(event) {
     renderComposition();
     return;
   }
-  selectImageGap(target.index, event.ctrlKey || event.metaKey);
+  selectImageGap(target.index, event.ctrlKey || event.metaKey, event.shiftKey);
 }
 
 function handleCanvasClick(event) {
@@ -985,22 +1043,38 @@ function startColorErase() {
   eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
 }
 
-function selectImageGap(index, additive = false) {
+function toggleBorderErase() {
+  if (!selectedImages.length) return;
+  eraseBorders = !eraseBorders;
+  eraseBorderButton.classList.toggle("is-active", eraseBorders);
+  eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
+  commitHistory();
+  renderComposition();
+}
+
+function selectImageGap(index, additive = false, range = false) {
   if (allGapsSelected) {
     allGapsSelected = false;
     selectedImageIndexes.clear();
   }
-  if (additive) {
+  if (range && selectionAnchorIndex !== null) {
+    const start = Math.min(selectionAnchorIndex, index);
+    const end = Math.max(selectionAnchorIndex, index);
+    selectedImageIndexes = new Set(Array.from({ length: end - start + 1 }, (_, offset) => start + offset));
+    selectedImageIndex = index;
+  } else if (additive) {
     if (selectedImageIndexes.has(index)) selectedImageIndexes.delete(index);
     else selectedImageIndexes.add(index);
     selectedImageIndex = selectedImageIndexes.has(index) ? index : [...selectedImageIndexes].at(-1) ?? null;
   } else if (selectedImageIndexes.size === 1 && selectedImageIndexes.has(index)) {
     selectedImageIndexes.clear();
     selectedImageIndex = null;
+    selectionAnchorIndex = null;
   } else {
     selectedImageIndexes = new Set([index]);
     selectedImageIndex = index;
   }
+  if (!range) selectionAnchorIndex = index;
   if (selectedImageIndex !== null) syncBorderControlsFromSelection();
   updateSpacingControls();
   updateSelectionLayer();
@@ -1012,6 +1086,9 @@ function updateSpacingControls() {
   const hasGaps = selectedImages.length > 1;
   spacingInput.disabled = !hasGaps;
   eraseColorButton.disabled = !hasImages;
+  eraseBorderButton.disabled = !hasImages;
+  eraseBorderButton.classList.toggle("is-active", eraseBorders);
+  eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
   rescaleButton.disabled = !hasImages || !eraseColor;
   const hasSelection = allGapsSelected || selectedImageIndexes.size > 0 || selectedImageIndex !== null;
   deleteImageButton.disabled = !hasImages || !hasSelection;
@@ -1095,6 +1172,7 @@ function deleteSelectedImage() {
   gapSizes = nextGaps;
   selectedImageIndex = null;
   selectedImageIndexes.clear();
+  selectionAnchorIndex = null;
   allGapsSelected = false;
   eraseMode = false;
   canvasScroll.classList.remove("is-eyedropper");
@@ -1334,7 +1412,7 @@ function renderFileList(orderedImages) {
     </button>
   `).join("");
   fileList.querySelectorAll(".file-item").forEach((item) => {
-    item.addEventListener("click", (event) => selectImageGap(Number(item.dataset.imageIndex), event.ctrlKey || event.metaKey));
+    item.addEventListener("click", (event) => selectImageGap(Number(item.dataset.imageIndex), event.ctrlKey || event.metaKey, event.shiftKey));
     item.addEventListener("dragstart", handleFileDragStart);
     item.addEventListener("dragover", handleFileDragOver);
     item.addEventListener("dragleave", handleFileDragLeave);
@@ -1379,12 +1457,14 @@ function reorderImages(fromIndex, toIndex) {
     ? new Set(orderedImages)
     : new Set([...selectedImageIndexes, ...(selectedImageIndex === null ? [] : [selectedImageIndex])].map((index) => orderedImages[index]).filter(Boolean));
   const primaryObject = selectedImageIndex === null ? null : orderedImages[selectedImageIndex];
+  const anchorObject = selectionAnchorIndex === null ? null : orderedImages[selectionAnchorIndex];
   const [movedImage] = orderedImages.splice(fromIndex, 1);
   orderedImages.splice(toIndex, 0, movedImage);
   manualOrder = orderedImages;
   customOrder = true;
   selectedImageIndexes = new Set(orderedImages.map((image, index) => selectedObjects.has(image) ? index : -1).filter((index) => index >= 0));
   selectedImageIndex = primaryObject ? orderedImages.indexOf(primaryObject) : null;
+  selectionAnchorIndex = anchorObject ? orderedImages.indexOf(anchorObject) : null;
   orderButtons.forEach((button) => {
     button.classList.remove("is-active");
     button.setAttribute("aria-checked", "false");
@@ -1511,7 +1591,8 @@ function captureState() {
     paddingSize,
     borderThickness,
     borderRadii: { ...borderRadii },
-    eraseColor: eraseColor ? { ...eraseColor } : null
+    eraseColor: eraseColor ? { ...eraseColor } : null,
+    eraseBorders
   };
 }
 
@@ -1523,7 +1604,7 @@ function statesMatch(first, second) {
   const firstOrder = first.manualOrder || first.selectedImages;
   const secondOrder = second.manualOrder || second.selectedImages;
   const sameManualOrder = firstOrder.length === secondOrder.length && firstOrder.every((image, index) => image === secondOrder[index]);
-  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.customOrder === second.customOrder && sameManualOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && JSON.stringify(firstBorders) === JSON.stringify(secondBorders) && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor);
+  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.customOrder === second.customOrder && sameManualOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && JSON.stringify(firstBorders) === JSON.stringify(secondBorders) && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor) && first.eraseBorders === second.eraseBorders;
 }
 
 function commitHistory() {
@@ -1577,12 +1658,16 @@ function restoreState(snapshot) {
   borderThickness = typeof snapshot.borderThickness === "number" ? snapshot.borderThickness : 0;
   borderRadii = snapshot.borderRadii ? { ...snapshot.borderRadii } : { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
   eraseColor = snapshot.eraseColor ? { ...snapshot.eraseColor } : null;
+  eraseBorders = Boolean(snapshot.eraseBorders);
   selectedImageIndex = null;
   selectedImageIndexes.clear();
+  selectionAnchorIndex = null;
   allGapsSelected = false;
   eraseMode = false;
   canvasScroll.classList.remove("is-eyedropper");
   eraseColorButton.classList.remove("is-active");
+  eraseBorderButton.classList.toggle("is-active", eraseBorders);
+  eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
   eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
   verticalToggle.classList.toggle("is-active", isVertical);
   verticalToggle.setAttribute("aria-pressed", String(isVertical));
