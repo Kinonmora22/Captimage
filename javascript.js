@@ -97,6 +97,8 @@ const historyToastTimers = new Map();
 let suppressCanvasClick = false;
 let scrollInertiaFrameId = null;
 let canvasDragState = null;
+let canvasReorderState = null;
+let reorderHoverIndex = null;
 let hoveredImageIndex = null;
 let selectionPulseTimer = null;
 let highlightEnabled = false;
@@ -147,6 +149,11 @@ copyButton.addEventListener("click", copyComposition);
 themeToggle.addEventListener("click", toggleTheme);
 deleteImageButton.addEventListener("click", deleteSelectedImage);
 canvas.addEventListener("click", handleCanvasClick);
+canvasScroll.addEventListener("pointerdown", beginCanvasReorder);
+canvasScroll.addEventListener("pointermove", moveCanvasReorder);
+canvasScroll.addEventListener("pointerup", finishCanvasReorder);
+canvasScroll.addEventListener("pointercancel", finishCanvasReorder);
+canvasScroll.addEventListener("contextmenu", (event) => event.preventDefault());
 colorTargetButtons.forEach((button) => {
   button.addEventListener("click", () => {
     activeColorTarget = button.dataset.colorTarget;
@@ -807,6 +814,8 @@ function updateSelectionLayer() {
     const classes = ["canvas-selection"];
     if (hoveredImageIndex === rect.index) classes.push("is-hovered");
     if (isSelected) classes.push("is-selected");
+    if (canvasReorderState?.sourceIndex === rect.index) classes.push("is-reorder-source");
+    if (reorderHoverIndex === rect.index) classes.push("is-reorder-target");
     return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left - expansion}px;top:${rect.top - expansion}px;width:${width + selectionThickness}px;height:${height + selectionThickness}px;border-radius:${selectionRadii.topLeft}px ${selectionRadii.topRight}px ${selectionRadii.bottomRight}px ${selectionRadii.bottomLeft}px;--selection-thickness:${selectionThickness}px"></div>`;
   }).join("");
 }
@@ -930,6 +939,74 @@ function startWheelInertia(target, deltaX, deltaY) {
   wheelInertiaFrameId = requestAnimationFrame(tick);
 }
 
+function getReorderTargetIndex(event) {
+  const directTarget = getCanvasImageAt(event);
+  if (directTarget) return directTarget.index;
+  if (!imageRects.length) return null;
+  const bounds = canvas.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return null;
+  const scaleX = canvas.width / bounds.width;
+  const scaleY = canvas.height / bounds.height;
+  const x = (event.clientX - bounds.left) * scaleX;
+  const y = (event.clientY - bounds.top) * scaleY;
+  let nearestIndex = null;
+  let nearestDistance = Infinity;
+  imageRects.forEach((rect) => {
+    const center = isVertical ? (rect.top + rect.bottom) / 2 : (rect.left + rect.right) / 2;
+    const distance = isVertical ? Math.abs(y - center) : Math.abs(x - center);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = rect.index;
+    }
+  });
+  return nearestIndex;
+}
+
+function beginCanvasReorder(event) {
+  if (event.button !== 2 || canvasScroll.classList.contains("is-eyedropper") || !imageRects.length) return;
+  const target = getCanvasImageAt(event);
+  if (!target) return;
+  if (canvasDragState) {
+    window.clearTimeout(canvasDragState.holdTimer);
+    canvasDragState = null;
+    canvasScroll.classList.remove("is-dragging-scroll");
+  }
+  cancelScrollInertia();
+  canvasReorderState = { pointerId: event.pointerId, sourceIndex: target.index, moved: false };
+  reorderHoverIndex = target.index;
+  canvasScroll.classList.add("is-reordering");
+  event.preventDefault();
+  canvasScroll.setPointerCapture?.(event.pointerId);
+  updateSelectionLayer();
+}
+
+function moveCanvasReorder(event) {
+  if (!canvasReorderState || canvasReorderState.pointerId !== event.pointerId) return;
+  const targetIndex = getReorderTargetIndex(event);
+  if (targetIndex === null) return;
+  if (targetIndex !== canvasReorderState.sourceIndex) canvasReorderState.moved = true;
+  if (targetIndex !== reorderHoverIndex) {
+    reorderHoverIndex = targetIndex;
+    updateSelectionLayer();
+  }
+  event.preventDefault();
+}
+
+function finishCanvasReorder(event) {
+  if (!canvasReorderState || (event && canvasReorderState.pointerId !== event.pointerId)) return;
+  if (event && event.type === "pointerup" && event.button !== 2) return;
+  const state = canvasReorderState;
+  const targetIndex = reorderHoverIndex;
+  canvasReorderState = null;
+  reorderHoverIndex = null;
+  canvasScroll.classList.remove("is-reordering");
+  if (canvasScroll.hasPointerCapture?.(state.pointerId)) canvasScroll.releasePointerCapture(state.pointerId);
+  updateSelectionLayer();
+  if (!state.moved || targetIndex === null || targetIndex === state.sourceIndex) return;
+  suppressCanvasClick = true;
+  reorderImages(state.sourceIndex, targetIndex);
+}
+
 function handleWheelScroll(event) {
   if (event.ctrlKey) return;
   const { x: deltaX, y: deltaY } = getWheelDelta(event);
@@ -943,7 +1020,7 @@ function handleWheelScroll(event) {
 }
 
 function beginCanvasDrag(event) {
-  if (event.button !== 0 || canvasScroll.classList.contains("is-eyedropper")) return;
+  if (event.button !== 0 || canvasScroll.classList.contains("is-eyedropper") || canvasReorderState) return;
   cancelScrollInertia();
   const state = canvasDragState = {
     pointerId: event.pointerId,

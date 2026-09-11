@@ -215,11 +215,14 @@ h2 { margin: 9px 0 0; font-size: 32px; letter-spacing: -.06em; }
 canvas { display: block; max-width: none; height: auto; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,.08); }
 canvas.canvas-fade { animation: canvas-fade .5s var(--ease-out) both; }
 .canvas-scroll.is-dragging-scroll { cursor: grabbing; user-select: none; }
+.canvas-scroll.is-reordering { cursor: grabbing; user-select: none; }
 .canvas-scroll.is-eyedropper, .canvas-scroll.is-eyedropper canvas { cursor: crosshair; }
 .canvas-selection-layer { position: absolute; inset: 0; z-index: 2; overflow: visible; pointer-events: none; }
 .canvas-selection { position: absolute; overflow: hidden; opacity: 0; border: 0 solid var(--accent-dark); box-shadow: 0 0 0 0 transparent; transition: opacity .18s ease, box-shadow .2s ease; }
 .canvas-selection.is-hovered { opacity: 1; border-width: var(--selection-thickness); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-dark) 28%, transparent), 0 0 18px color-mix(in srgb, var(--accent-dark) 36%, transparent); }
 .canvas-selection.is-selected { z-index: 2; opacity: 1; border: var(--selection-thickness) solid color-mix(in srgb, var(--accent-dark) 55%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--accent-dark) 30%, transparent); }
+.canvas-selection.is-reorder-source { z-index: 3; opacity: 1; border: var(--selection-thickness) dashed var(--accent-dark); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-dark) 18%, transparent), 0 0 18px color-mix(in srgb, var(--accent-dark) 30%, transparent); }
+.canvas-selection.is-reorder-target { z-index: 3; opacity: 1; border: var(--selection-thickness) solid var(--accent-dark); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-dark) 24%, transparent); }
 .canvas-selection.is-pulse::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(110deg, transparent 24%, color-mix(in srgb, var(--accent) 85%, white) 50%, transparent 76%); opacity: 0; animation: image-selection-flash .72s var(--ease-out) both; }
 .spacing-panel { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 20px; margin-top: 15px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.72); }
 .spacing-panel-wrap { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 10px; margin-top: 15px; }
