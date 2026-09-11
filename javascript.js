@@ -35,6 +35,7 @@ const blueInput = document.getElementById("blue-input");
 const transparencySlider = document.getElementById("transparency-slider");
 const transparencyValue = document.getElementById("transparency-value");
 const eraseColorButton = document.getElementById("erase-color-button");
+const rescaleButton = document.getElementById("rescale-button");
 const eraseStatus = document.getElementById("erase-status");
 const orderButtons = [...document.querySelectorAll("[data-order]")];
 const alignButtons = [...document.querySelectorAll("[data-align]")];
@@ -265,6 +266,7 @@ alignButtons.forEach((button) => {
 applySpacingButton.addEventListener("click", applySpacing);
 applyPaddingButton.addEventListener("click", applyPadding);
 eraseColorButton.addEventListener("click", startColorErase);
+rescaleButton.addEventListener("click", rescaleImagesToVisibleBounds);
 selectAllGapsButton.addEventListener("click", () => {
   if (allGapsSelected) {
     allGapsSelected = false;
@@ -537,6 +539,66 @@ function getRenderableImage(image) {
   }
   processedContext.putImageData(pixels, 0, 0);
   return processedCanvas;
+}
+
+function cropTransparentBounds(source) {
+  const width = source.width;
+  const height = source.height;
+  if (!width || !height) return source;
+  const sourceCanvas = source instanceof HTMLCanvasElement ? source : (() => {
+    const canvasCopy = document.createElement("canvas");
+    canvasCopy.width = width;
+    canvasCopy.height = height;
+    canvasCopy.getContext("2d").drawImage(source, 0, 0);
+    return canvasCopy;
+  })();
+  const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  const pixels = sourceContext.getImageData(0, 0, width, height).data;
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] === 0) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  if (right < left || bottom < top) {
+    const emptyCanvas = document.createElement("canvas");
+    emptyCanvas.width = 1;
+    emptyCanvas.height = 1;
+    return emptyCanvas;
+  }
+  if (left === 0 && top === 0 && right === width - 1 && bottom === height - 1) return source;
+  const croppedCanvas = document.createElement("canvas");
+  croppedCanvas.width = right - left + 1;
+  croppedCanvas.height = bottom - top + 1;
+  croppedCanvas.getContext("2d").drawImage(sourceCanvas, left, top, croppedCanvas.width, croppedCanvas.height, 0, 0, croppedCanvas.width, croppedCanvas.height);
+  return croppedCanvas;
+}
+
+function rescaleImagesToVisibleBounds() {
+  if (!selectedImages.length || !eraseColor) return;
+  const replacements = new Map();
+  const nextImages = selectedImages.map((entry) => {
+    const visibleImage = cropTransparentBounds(getRenderableImage(entry.image));
+    if (visibleImage === entry.image || (visibleImage.width === entry.image.width && visibleImage.height === entry.image.height)) return entry;
+    const nextEntry = { ...entry, image: visibleImage };
+    replacements.set(entry, nextEntry);
+    const settings = imageBorderSettings.get(entry.image);
+    if (settings) imageBorderSettings.set(visibleImage, cloneBorderSettings(settings));
+    imageBorderSettings.delete(entry.image);
+    return nextEntry;
+  });
+  if (!replacements.size) return;
+  selectedImages = nextImages;
+  manualOrder = manualOrder.map((entry) => replacements.get(entry) || entry);
+  commitHistory();
+  renderComposition();
 }
 
 function drawRenderableImage(source, x, y, width, height, settings = null) {
@@ -950,6 +1012,7 @@ function updateSpacingControls() {
   const hasGaps = selectedImages.length > 1;
   spacingInput.disabled = !hasGaps;
   eraseColorButton.disabled = !hasImages;
+  rescaleButton.disabled = !hasImages || !eraseColor;
   const hasSelection = allGapsSelected || selectedImageIndexes.size > 0 || selectedImageIndex !== null;
   deleteImageButton.disabled = !hasImages || !hasSelection;
   selectAllGapsButton.disabled = !hasImages;
@@ -1262,7 +1325,7 @@ function clamp(value, min, max) {
 function renderFileList(orderedImages) {
   fileList.innerHTML = orderedImages.map(({ file, image }, index) => `
     <button class="file-item" type="button" draggable="true" data-image-index="${index}">
-      <img class="file-thumb" src="${image.src}" alt="" />
+      <img class="file-thumb" src="${image.src || image.toDataURL("image/png")}" alt="" />
       <div class="file-details">
         <span class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
         <span class="file-size">${image.width} × ${image.height} px</span>
