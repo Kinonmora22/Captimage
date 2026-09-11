@@ -112,6 +112,18 @@ imageInput.addEventListener("change", (event) => {
   imageInput.value = "";
 });
 
+document.addEventListener("paste", (event) => {
+  if (isTypingTarget(event.target)) return;
+  const pastedImages = [...(event.clipboardData?.items || [])]
+    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter(Boolean)
+    .map((file, index) => file.name ? file : new File([file], `imagem-colada-${Date.now()}-${index + 1}.png`, { type: file.type || "image/png" }));
+  if (!pastedImages.length) return;
+  event.preventDefault();
+  addImages(pastedImages);
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Delete" && !isTypingTarget(event.target) && !deleteImageButton.disabled) {
     event.preventDefault();
@@ -963,15 +975,9 @@ function getReorderTargetIndex(event) {
 }
 
 function beginCanvasReorder(event) {
-  if (event.button !== 2 || canvasScroll.classList.contains("is-eyedropper") || !imageRects.length) return;
+  if (event.button !== 0 || canvasScroll.classList.contains("is-eyedropper") || !imageRects.length) return;
   const target = getCanvasImageAt(event);
   if (!target) return;
-  if (canvasDragState) {
-    window.clearTimeout(canvasDragState.holdTimer);
-    canvasDragState = null;
-    canvasScroll.classList.remove("is-dragging-scroll");
-  }
-  cancelScrollInertia();
   canvasReorderState = { pointerId: event.pointerId, sourceIndex: target.index, moved: false };
   reorderHoverIndex = target.index;
   canvasScroll.classList.add("is-reordering");
@@ -994,7 +1000,7 @@ function moveCanvasReorder(event) {
 
 function finishCanvasReorder(event) {
   if (!canvasReorderState || (event && canvasReorderState.pointerId !== event.pointerId)) return;
-  if (event && event.type === "pointerup" && event.button !== 2) return;
+  if (event && event.type === "pointerup" && event.button !== 0) return;
   const state = canvasReorderState;
   const targetIndex = reorderHoverIndex;
   canvasReorderState = null;
@@ -1020,7 +1026,7 @@ function handleWheelScroll(event) {
 }
 
 function beginCanvasDrag(event) {
-  if (event.button !== 0 || canvasScroll.classList.contains("is-eyedropper") || canvasReorderState) return;
+  if (event.button !== 2 || canvasScroll.classList.contains("is-eyedropper")) return;
   cancelScrollInertia();
   const state = canvasDragState = {
     pointerId: event.pointerId,
@@ -1085,6 +1091,7 @@ function moveCanvasDrag(event) {
 
 function finishCanvasDrag(event) {
   if (!canvasDragState || (event && canvasDragState.pointerId !== event.pointerId)) return;
+  if (event && event.type === "pointerup" && event.button !== 2) return;
   const state = canvasDragState;
   canvasDragState = null;
   window.clearTimeout(state.holdTimer);
