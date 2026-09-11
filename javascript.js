@@ -640,7 +640,7 @@ function cropTransparentBounds(source) {
 }
 
 function rescaleImagesToVisibleBounds() {
-  if (!selectedImages.length || !eraseColor) return;
+  if (!selectedImages.length || (!eraseColor && !eraseBorders)) return;
   const replacements = new Map();
   const nextImages = selectedImages.map((entry) => {
     const visibleImage = cropTransparentBounds(getRenderableImage(entry.image));
@@ -1089,7 +1089,7 @@ function updateSpacingControls() {
   eraseBorderButton.disabled = !hasImages;
   eraseBorderButton.classList.toggle("is-active", eraseBorders);
   eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
-  rescaleButton.disabled = !hasImages || !eraseColor;
+  rescaleButton.disabled = !hasImages || (!eraseColor && !eraseBorders);
   const hasSelection = allGapsSelected || selectedImageIndexes.size > 0 || selectedImageIndex !== null;
   deleteImageButton.disabled = !hasImages || !hasSelection;
   selectAllGapsButton.disabled = !hasImages;
