@@ -382,7 +382,7 @@
         <article class="about-card">
           <span class="about-card-kicker">espaço</span>
           <h3>Espaço e padding</h3>
-          <p>Selecione uma imagem, informe o espaço até a próxima e clique em <strong>Aplicar espaço</strong>. O <strong>padding geral</strong> adiciona margem ao redor de toda a composição. <strong>Selecionar todos</strong> aplica o mesmo espaço a todos os intervalos.</p>
+          <p>Selecione uma imagem, informe o espaço até a próxima e clique em <strong>Aplicar espaço</strong>. O <strong>padding geral</strong> adiciona margem ao redor de toda a composição. <strong>Selecionar todos</strong> aplica o mesmo espaço a todos os intervalos e pode ser acionado com <kbd>Ctrl</kbd> + <kbd>A</kbd>.</p>
         </article>
 
         <article class="about-card about-card-wide">
@@ -405,13 +405,22 @@
           <p>Clique em uma imagem para selecionar ou deselecionar. Segure <kbd>Ctrl</kbd> para selecionar itens individuais e <kbd>Shift</kbd> para selecionar um intervalo. Arraste com o botão esquerdo para reordenar imagens e use o botão direito para mover a área da prévia.</p>
         </article>
 
-        <article class="about-card">
+        <article class="about-card about-card-wide">
           <span class="about-card-kicker">atalhos</span>
           <h3>Teclado e arquivos</h3>
-          <p><kbd>Ctrl</kbd> + <kbd>C</kbd> copia as imagens selecionadas separadamente; <kbd>Ctrl</kbd> + <kbd>V</kbd> cola após a seleção. <kbd>Delete</kbd> apaga imagens ou cores selecionadas. Arraste arquivos para a página para adicioná-los.</p>
+          <div class="manual-list">
+            <div><strong><kbd>Ctrl</kbd> + <kbd>A</kbd></strong><span>Seleciona todas as imagens. Pressione novamente para retirar a seleção.</span></div>
+            <div><strong><kbd>Ctrl</kbd> + <kbd>C</kbd></strong><span>Copia as imagens selecionadas individualmente para a área de transferência do navegador.</span></div>
+            <div><strong><kbd>Ctrl</kbd> + <kbd>V</kbd></strong><span>Adiciona imagens coladas depois da última imagem selecionada.</span></div>
+            <div><strong><kbd>Delete</kbd></strong><span>Apaga imagens selecionadas ou, quando a lista de cores estiver focada, remove as cores selecionadas.</span></div>
+            <div><strong><kbd>Ctrl</kbd> + <kbd>Z</kbd></strong><span>Desfaz a última alteração. <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> refaz a alteração.</span></div>
+            <div><strong><kbd>Enter</kbd></strong><span>Confirma valores numéricos de espaço, padding, bordas, RGB, HEX e sliders.</span></div>
+            <div><strong><kbd>Esc</kbd></strong><span>Fecha o manual de uso quando ele estiver aberto.</span></div>
+            <div><strong>Arrastar arquivos</strong><span>Solte imagens na página para adicioná-las à composição sem abrir o seletor.</span></div>
+          </div>
         </article>
       </div>
-      <div class="about-dialog-footer">Dica: todos os valores numéricos podem ser confirmados com <kbd>Enter</kbd>.</div>
+      <div class="about-dialog-footer">Dica: os ajustes de cor, borda, remoção e reescala afetam somente as imagens selecionadas. O padding continua sendo sempre geral.</div>
     </section>
   </div>
   <script src="javascript.js"></script>

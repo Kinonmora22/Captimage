@@ -179,8 +179,10 @@ document.addEventListener("paste", (event) => {
     .map((item) => item.getAsFile())
     .filter(Boolean)
     .map((file, index) => file.name ? file : new File([file], `imagem-colada-${Date.now()}-${index + 1}.png`, { type: file.type || "image/png" }));
-  const useInternalClipboard = internalImageClipboard.length > clipboardImages.length;
-  const pastedImages = useInternalClipboard ? internalImageClipboard : clipboardImages;
+  const htmlImages = clipboardImages.length ? [] : getImagesFromClipboardHtml(event.clipboardData?.getData("text/html") || "");
+  const externalClipboardImages = clipboardImages.length ? clipboardImages : htmlImages;
+  const useInternalClipboard = internalImageClipboard.length > externalClipboardImages.length;
+  const pastedImages = useInternalClipboard ? internalImageClipboard : externalClipboardImages;
   if (!pastedImages.length) return;
   event.preventDefault();
   addImages(pastedImages, { afterSelection: true });
@@ -189,8 +191,16 @@ document.addEventListener("paste", (event) => {
 
 document.addEventListener("pointerup", handleGlobalPointerRelease);
 document.addEventListener("pointercancel", handleGlobalPointerRelease);
+window.addEventListener("blur", () => {
+  internalImageClipboard = [];
+});
 
 document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !isTypingTarget(event.target) && !selectAllGapsButton.disabled) {
+    event.preventDefault();
+    selectAllGapsButton.click();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c" && !isTypingTarget(event.target)) {
     const selectedEntries = getSelectedImageEntries();
     if (selectedEntries.length) {
@@ -2086,6 +2096,28 @@ async function prepareImageClipboardItem(entry, index) {
   return fallbackBlob ? { blob: fallbackBlob, type: "image/png", name: `imagem-copiada-${index + 1}.png` } : null;
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function getImagesFromClipboardHtml(html) {
+  const dataUrls = [...html.matchAll(/<img\b[^>]*\bsrc=["'](data:image\/[^"']+)["'][^>]*>/gi)]
+    .map((match) => match[1]);
+  return dataUrls.map((dataUrl, index) => {
+    const [header, encoded] = dataUrl.split(",", 2);
+    if (!encoded) return null;
+    const mimeType = header.match(/^data:(image\/[^;]+);base64$/i)?.[1] || "image/png";
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new File([bytes], `imagem-colada-${Date.now()}-${index + 1}.${mimeType.split("/")[1] || "png"}`, { type: mimeType });
+  }).filter(Boolean);
+}
+
 async function copySelectedImages(entries) {
   if (!entries.length) return;
   if (!navigator.clipboard?.write || !window.ClipboardItem) {
@@ -2096,7 +2128,23 @@ async function copySelectedImages(entries) {
     const preparedImages = (await Promise.all(entries.map(prepareImageClipboardItem))).filter(Boolean);
     if (!preparedImages.length) return;
     internalImageClipboard = preparedImages.map(({ blob, type, name }) => new File([blob], name, { type }));
-    const clipboardItems = preparedImages.map(({ blob, type }) => new ClipboardItem({ [type]: blob }));
+    let clipboardItems;
+    if (preparedImages.length === 1) {
+      const [{ blob, type }] = preparedImages;
+      clipboardItems = [new ClipboardItem({ [type]: blob })];
+    } else {
+      const dataUrls = await Promise.all(preparedImages.map(({ blob }) => blobToDataUrl(blob)));
+      const html = `<!doctype html><html><body><!--StartFragment--><div>${dataUrls
+        .map((dataUrl, index) => `<img src="${dataUrl}" alt="Imagem ${index + 1}" style="display:block;max-width:100%;" />`)
+        .join("")}<!--EndFragment--></div></body></html>`;
+      const plainText = preparedImages.map(({ name }, index) => name || `Imagem ${index + 1}`).join("\n");
+      const firstImage = preparedImages[0];
+      clipboardItems = [new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([plainText], { type: "text/plain" }),
+        [firstImage.type]: firstImage.blob
+      })];
+    }
     await navigator.clipboard.write(clipboardItems);
     showCopyFeedback(preparedImages.length > 1 ? `${preparedImages.length} copiadas` : "Copiado");
   } catch (error) {
