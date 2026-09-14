@@ -2029,7 +2029,8 @@ body.dark-theme .canvas-frame {
 }
 
 body.dark-theme .canvas-scroll {
-  background-image: linear-gradient(45deg, #211a17 25%, transparent 25%), linear-gradient(-45deg, #211a17 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #211a17 75%), linear-gradient(-45deg, transparent 75%, #211a17 75%);
+  background-color: #2a201c;
+  background-image: linear-gradient(45deg, #4a352b 25%, transparent 25%), linear-gradient(-45deg, #4a352b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #4a352b 75%), linear-gradient(-45deg, transparent 75%, #4a352b 75%);
 }
 
 body.dark-theme .color-surface {
