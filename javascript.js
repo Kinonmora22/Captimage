@@ -64,6 +64,184 @@ const borderRadiusInputs = {
 };
 const borderParameterInputs = [borderThicknessInput, borderRadiusGeneralInput, ...Object.values(borderRadiusInputs)];
 
+const browserLocale = navigator.languages?.[0] || navigator.language || "pt-BR";
+const uiLanguage = browserLocale.toLowerCase().startsWith("pt") ? "pt" : "en";
+
+function t(key, portuguese) {
+  if (uiLanguage !== "en") return portuguese;
+  const english = {
+    image: "image",
+    images: "images",
+    transparent: "transparent",
+    largerSmaller: "larger → smaller",
+    smallerLarger: "smaller → larger",
+    customOrder: "custom order",
+    top: "top",
+    center: "centered",
+    bottom: "bottom",
+    left: "left",
+    right: "right",
+    erasedColor: "Erased color: ()",
+    erasedColorValue: (value) => `Erased color: (${value})`,
+    erasedColorsCount: (count) => `Erased colors: (${count})`,
+    noErasedColors: "No erased colors",
+    allGapsSelected: "All gaps selected. Padding is global.",
+    allImages: "all",
+    lastImage: "Last image selected: adjust only the global padding.",
+    selectedImage: "Image selected: adjust the space to the next image and the global padding.",
+    chooseSpace: "Click an image in the preview to choose the space to the next one.",
+    addImagesToEdit: "Add images and click one to edit its space and padding.",
+    copied: "Copied",
+    copy: "Copy",
+    unavailable: "Unavailable",
+    failed: "Failed",
+    copiedCount: (count) => `${count} copied`,
+    emptyColor: "Empty color",
+    borderColor: "Border color",
+    light: "light",
+    dark: "dark",
+    themeLightAria: "Activate light mode",
+    themeDarkAria: "Activate dark mode",
+    undone: "Undone",
+    redone: "Redone",
+    times: "times"
+  };
+  return english[key] ?? portuguese;
+}
+
+function setLanguageText(selector, value, html = false) {
+  const element = document.querySelector(selector);
+  if (!element) return;
+  if (html) element.innerHTML = value;
+  else element.textContent = value;
+}
+
+function applyBrowserLanguage() {
+  const isEnglish = uiLanguage === "en";
+  document.documentElement.lang = isEnglish ? "en" : "pt-BR";
+  if (!isEnglish) return;
+
+  document.title = "CaptiMage";
+  document.querySelector('meta[name="description"]')?.setAttribute("content", "Combine images into a custom composition.");
+  document.querySelector(".brand")?.setAttribute("aria-label", "CaptiMage, home");
+  setLanguageText(".topbar-note", "image composition");
+  setLanguageText(".theme-toggle-label", "dark");
+  setLanguageText(".about-button > span:last-child", "About");
+  const heroEyebrow = document.querySelector(".hero > .eyebrow");
+  if (heroEyebrow?.lastChild) heroEyebrow.lastChild.textContent = " local tool · your files never leave the browser";
+  setLanguageText("#page-title", "Join images.<br /><em>Your way.</em>", true);
+  setLanguageText(".intro", "Send multiple images and we will organize them from largest to smallest, with centered alignment and transparent spacing.");
+  setLanguageText(".upload-copy strong", "Send images");
+  setLanguageText(".upload-copy span", "Choose two or more images from your computer");
+  setLanguageText(".drop-hint", "or drag and drop your images here");
+  document.querySelector(".demo-strip")?.setAttribute("aria-label", "Animated composition example");
+  setLanguageText(".demo-heading span:first-child", "✦ an idea of the result");
+  setLanguageText(".demo-heading span:last-child", "automatic preview");
+  document.querySelectorAll(".demo-image img").forEach((image) => {
+    image.alt = image.alt.replace("Paisagem montanhosa", "Mountain landscape").replace("Lago entre montanhas", "Lake between mountains").replace("Paisagem natural vista de cima", "Aerial natural landscape").replace("Casa moderna cercada por natureza", "Modern house surrounded by nature").replace("Casa com jardim", "House with garden");
+  });
+  const workspaceEyebrow = document.querySelector(".workspace-heading .eyebrow");
+  if (workspaceEyebrow?.lastChild) workspaceEyebrow.lastChild.textContent = " preview";
+  setLanguageText(".workspace-heading h2", "Your composition");
+  setLanguageText("#add-more", "+ Add more");
+  setLanguageText("#highlight-toggle", "✦ Highlight");
+  setLanguageText("#vertical-toggle", "↕ Vertical");
+  setLanguageText("#copy-label", "Copy");
+  setLanguageText("#export-button > span:first-child", "Export");
+  setLanguageText("#image-count", "0 images");
+  const sortLabel = document.querySelector(".sort-label");
+  if (sortLabel?.firstChild) sortLabel.firstChild.textContent = "layout: ";
+  setLanguageText("#empty-color-target span", "Empty color");
+  setLanguageText("#border-color-target span", "Border color");
+  setLanguageText(".rgb-caption", "adjust · RGB");
+  setLanguageText("#erase-reset-button", "Reset");
+  setLanguageText(".hex-color span", "HEX");
+  setLanguageText("#transparent-toggle", "transparent");
+  setLanguageText(".transparency-label span", "transparency");
+  setLanguageText(".hue-control .slider-label", "color");
+  setLanguageText("#erase-border-button", "Erase borders");
+  setLanguageText("#erase-color-button", "Erase colors");
+  setLanguageText("#rescale-button", "Rescale");
+  setLanguageText(".layout-block > .control-title", "Order and alignment");
+  setLanguageText(".layout-block .layout-subtitle:not(.alignment-subtitle):not(.horizontal-alignment-subtitle):not(.border-subtitle)", "image order");
+  setLanguageText(".alignment-subtitle", "vertical alignment");
+  setLanguageText(".horizontal-alignment-subtitle", "horizontal alignment");
+  setLanguageText(".border-subtitle", "image borders");
+  setLanguageText("[data-order=desc]", "↗ larger → smaller");
+  setLanguageText("[data-order=asc]", "↘ smaller → larger");
+  setLanguageText("[data-align=top]", "↑ top");
+  setLanguageText("[data-align=center]", "↕ centered");
+  setLanguageText("[data-align=bottom]", "↓ bottom");
+  setLanguageText("[data-horizontal-align=left]", "← left");
+  setLanguageText("[data-horizontal-align=center]", "↔ centered");
+  setLanguageText("[data-horizontal-align=right]", "→ right");
+  ["thickness", "general radius", "top-left radius", "bottom-left radius", "bottom-right radius", "top-right radius"].forEach((label, index) => {
+    const field = document.querySelectorAll(".border-field span")[index];
+    if (field) field.textContent = ["border thickness", "general border radius", "top-left radius", "bottom-left radius", "bottom-right radius", "top-right radius"][index];
+  });
+  setLanguageText("canvas[aria-label]", "Preview of the final composition");
+  setLanguageText(".spacing-heading .control-title", "Space between images");
+  setLanguageText(".spacing-status", "Click an image in the preview to choose the space to the next one.");
+  setLanguageText(".spacing-hint", "unit: px");
+  setLanguageText("#apply-spacing", "Apply space");
+  setLanguageText("#apply-padding", "Apply padding");
+  setLanguageText("#select-all-gaps", "Select all");
+  document.querySelector("#delete-image-button")?.setAttribute("aria-label", "Delete selected image");
+  document.querySelector("#delete-image-button")?.setAttribute("title", "Delete selected image");
+  document.querySelector("#about-close")?.setAttribute("aria-label", "Close manual");
+  document.querySelector("[aria-label='Escolher o tipo de cor']")?.setAttribute("aria-label", "Choose color type");
+  document.querySelector("[aria-label='Ajuste RGB']")?.setAttribute("aria-label", "RGB adjustment");
+  document.querySelector("#hex-input")?.setAttribute("aria-label", "Color HEX code");
+  document.querySelector("#transparency-slider")?.setAttribute("aria-label", "Transparency of selected color");
+  document.querySelector("#hue-slider")?.setAttribute("aria-label", "Choose color hue");
+  document.querySelector(".erase-actions")?.setAttribute("aria-label", "Erase and scale actions");
+  document.querySelector("[aria-label='Ordem das imagens']")?.setAttribute("aria-label", "Image order");
+  document.querySelector("[aria-label='Alinhamento vertical']")?.setAttribute("aria-label", "Vertical alignment");
+  document.querySelector("[aria-label='Alinhamento horizontal']")?.setAttribute("aria-label", "Horizontal alignment");
+  setLanguageText(".footer", "A simple tool for side-by-side images ✦");
+  translateManualToEnglish();
+}
+
+function translateManualToEnglish() {
+  setLanguageText(".about-dialog-header .eyebrow", "quick manual");
+  setLanguageText("#about-title", "How to use CaptiMage");
+  setLanguageText(".about-dialog-header p", "Build an image composition, adjust every detail and export the result without leaving your browser.");
+  const cards = [...document.querySelectorAll(".about-card")];
+  const setCard = (index, kicker, title, description) => {
+    const card = cards[index];
+    if (!card) return;
+    card.querySelector(".about-card-kicker").textContent = kicker;
+    card.querySelector("h3").textContent = title;
+    if (description !== null) card.querySelector("p").innerHTML = description;
+  };
+  setCard(0, "history", "Undo and redo", "Undo or redo changes made to the composition.");
+  const shortcuts = cards[0]?.querySelectorAll(".shortcut-row span:first-child");
+  if (shortcuts?.length) { shortcuts[0].textContent = "Undo"; shortcuts[1].textContent = "Redo"; }
+  setCard(1, "start", "Add images", "Click <strong>Send images</strong>, drag files onto the page or paste an image with <kbd>Ctrl</kbd> + <kbd>V</kbd>.");
+  setCard(2, "composition", "Order and direction", "Choose larger → smaller, smaller → larger or enable vertical mode. In vertical mode, choose the horizontal alignment.");
+  setCard(3, "selection", "Select images", "Click to select. Use <kbd>Ctrl</kbd> for individual images, <kbd>Shift</kbd> for a range and <kbd>Ctrl</kbd> + <kbd>A</kbd> to select all.");
+  setCard(4, "organize", "Reorder and move", "Drag an image in the preview or the bottom list to change its position. Use the right mouse button in the preview to navigate.");
+  setCard(5, "finishing", "Colors and borders", "Configure the empty color, transparency, borders, radii and spacing. <strong>Erase colors</strong> lets you choose colors directly in the preview.");
+  setCard(6, "result", "Copy and export", "Use <strong>Copy</strong> to send the composition to the clipboard or <strong>Export</strong> to save a file.");
+  setCard(8, "order", "Layout and alignment", "<strong>Larger → smaller</strong> and <strong>smaller → larger</strong> sort images by height. In horizontal mode, vertical alignment controls their vertical position. In vertical mode, horizontal alignment offers left, centered and right.");
+  setCard(9, "spacing", "Space and padding", "Select an image, enter the space to the next one and click <strong>Apply space</strong>. <strong>Global padding</strong> adds margin around the composition. <strong>Select all</strong> applies the same space to every gap.");
+  setCard(11, "preview", "Quick interactions", null);
+  const rowSets = {
+    7: [["+ Add more", "Adds more images without removing the current ones."], ["Highlight", "Marks selected images with the selection color when copied or exported."], ["Vertical", "Switches between a horizontal row and vertically stacked images."], ["Copy", "Copies the whole composition. With an image selected, Ctrl + C copies only that image."], ["Export", "Saves the final composition as PNG and lets you choose the name and location."], ["☾ / ☀", "Switches between dark and light themes."], ["?", "Opens this manual."]],
+    10: [["Empty color / Border color", "Chooses which area is edited. HEX, RGB, the color surface and sliders change the active color."], ["Transparent", "Removes the active color and makes the empty area or border transparent. Click again to return to the chosen color."], ["Erase borders", "Removes colors connected to the borders of selected images."], ["Erase colors", "Activates the eyedropper. Click a color in the preview to remove it from selected images."], ["Reset", "Removes erased colors from selected images. The list supports Ctrl or Shift selection and Delete."], ["Rescale", "Crops transparent space created by removing colors or borders from selected images."], ["Image borders", "Sets thickness, general radius and the four individual corner radii."]],
+    11: [["Select", "Click an image quickly to select it. Click a selected image again to remove its selection."], ["Ctrl and Shift", "Hold Ctrl to add or remove individual images. Hold Shift to select the range between the current selection and the clicked image."], ["Select all", "Use the Select all button or Ctrl + A. Press it again to clear the selection."], ["Reorder in preview", "Hold the left button on an image, move it to another position and release to confirm. The rearrangement animation appears after the move."], ["Reorder in list", "In the image list below the preview, hold an item or its icon and drag it to the desired position."], ["Navigate preview", "Hold the right button and move the mouse to pan the preview. Inertia continues the movement briefly after release."], ["Both buttons", "You can hold an image with the left button and, without releasing it, use the right button to navigate the preview."], ["Mouse wheel", "Use the wheel to scroll the page, preview or color list depending on where the pointer is. Scrolling is smooth and accelerated."], ["Hover and glow", "Hovering an image shows its selection border. Clicking it shows a quick glow contained within the image."]],
+    12: [["Ctrl + A", "Selects every image. Press it again to clear the selection."], ["Ctrl + C", "Copies selected images individually to the browser clipboard."], ["Ctrl + V", "Adds pasted images after the last selected image."], ["Delete", "Deletes selected images or, when the color list is focused, selected colors."], ["Ctrl + Z", "Undoes the last change. Ctrl + Shift + Z redoes it."], ["Enter", "Confirms numeric values for space, padding, borders, RGB, HEX and sliders."], ["Esc", "Closes the manual when it is open."], ["Drag files", "Drop images onto the page to add them without opening the file picker."]]
+  };
+  Object.entries(rowSets).forEach(([cardIndex, rows]) => {
+    cards[Number(cardIndex)]?.querySelectorAll(".manual-list > div").forEach((row, index) => {
+      if (!rows[index]) return;
+      row.querySelector("strong").innerHTML = rows[index][0];
+      row.querySelector("span").innerHTML = rows[index][1];
+    });
+  });
+  setLanguageText(".about-dialog-footer", "Tip: color, border, erase and rescale changes affect only selected images. Padding is always global.");
+}
+
 let selectedImages = [];
 let selectedColor = null;
 let borderColor = "#ffffff";
@@ -643,8 +821,8 @@ function renderComposition(shouldScroll = false, animate = true) {
   workspace.hidden = false;
   demoStrip.hidden = true;
   copyButton.disabled = false;
-  imageCount.textContent = `${orderedImages.length} ${orderedImages.length === 1 ? "imagem" : "imagens"}`;
-  compositionSize.textContent = `${totalWidth.toLocaleString("pt-BR")} × ${totalHeight.toLocaleString("pt-BR")} px`;
+  imageCount.textContent = `${orderedImages.length} ${orderedImages.length === 1 ? t("image", "imagem") : t("images", "imagens")}`;
+  compositionSize.textContent = `${totalWidth.toLocaleString(uiLanguage === "en" ? "en-US" : "pt-BR")} × ${totalHeight.toLocaleString(uiLanguage === "en" ? "en-US" : "pt-BR")} px`;
   renderFileList(orderedImages);
   updateSpacingControls();
   if (shouldFadeBackground) {
@@ -974,10 +1152,12 @@ function clampCornerRadii(radii, width, height) {
 }
 
 function updateLayoutLabel() {
-  const orderLabel = customOrder ? orderNames.custom : orderNames[selectedOrder];
+  const orderLabel = customOrder
+    ? t("customOrder", "ordem personalizada")
+    : selectedOrder === "asc" ? t("smallerLarger", "menor → maior") : t("largerSmaller", "maior → menor");
   layoutLabel.textContent = isVertical
-    ? `${orderLabel} · vertical · ${horizontalAlignmentNames[selectedHorizontalAlignment]}`
-    : `${orderLabel} · ${alignmentNames[selectedAlignment]}`;
+    ? `${orderLabel} · vertical · ${selectedHorizontalAlignment === "left" ? t("left", "esquerda") : selectedHorizontalAlignment === "right" ? t("right", "direita") : t("center", "centralizado")}`
+    : `${orderLabel} · ${selectedAlignment === "top" ? t("top", "para cima") : selectedAlignment === "bottom" ? t("bottom", "para baixo") : t("center", "centralizado")}`;
 }
 
 function selectImageAt(event) {
@@ -1514,15 +1694,15 @@ function resetErasedColors() {
 
 function updateEraseStatus() {
   if (!erasedColors.length) {
-    eraseStatus.textContent = "Cor apagada: ()";
+    eraseStatus.textContent = t("erasedColor", "Cor apagada: ()");
     return;
   }
   if (selectedErasedColorIndexes.size === 1) {
     const index = [...selectedErasedColorIndexes][0];
-    eraseStatus.textContent = `Cor apagada: (${rgbToHex(erasedColors[index]).toUpperCase()})`;
+    eraseStatus.textContent = t("erasedColorValue", (value) => `Cor apagada: (${value})`)(rgbToHex(erasedColors[index]).toUpperCase());
     return;
   }
-  eraseStatus.textContent = `Cores apagadas: (${erasedColors.length})`;
+  eraseStatus.textContent = t("erasedColorsCount", (count) => `Cores apagadas: (${count})`)(erasedColors.length);
 }
 
 function renderErasedColorsList() {
@@ -1535,7 +1715,7 @@ function renderErasedColorsList() {
       const isSelected = selectedErasedColorIndexes.has(index);
       return `<button class="erased-color-item${isSelected ? " is-selected" : ""}" type="button" role="option" aria-selected="${isSelected}" data-erased-color-index="${index}"><span class="erased-color-swatch" style="--erased-color:${rgbToHex(color)}"></span><span class="erased-color-value">${rgbToHex(color).toUpperCase()}</span><span class="erased-color-index">${String(index + 1).padStart(2, "0")}</span></button>`;
     }).join("")
-    : `<div class="erased-colors-empty">Nenhuma cor apagada</div>`;
+    : `<div class="erased-colors-empty">${t("noErasedColors", "Nenhuma cor apagada")}</div>`;
   erasedColorsList.querySelectorAll(".erased-color-item").forEach((item) => {
     item.addEventListener("click", (event) => selectErasedColor(Number(item.dataset.erasedColorIndex), event.ctrlKey || event.metaKey, event.shiftKey));
   });
@@ -1656,24 +1836,26 @@ function updateSpacingControls() {
   highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   selectAllGapsButton.classList.toggle("is-active", allGapsSelected);
   if (allGapsSelected) {
-    spacingStatus.textContent = "Todos os espaços foram selecionados. O padding é geral.";
-    selectedImageLabel.textContent = "todos";
+    spacingStatus.textContent = t("allGapsSelected", "Todos os espaços foram selecionados. O padding é geral.");
+    selectedImageLabel.textContent = t("allImages", "todos");
     spacingInput.value = gapSizes.length ? gapSizes[0] : 0;
     paddingInput.value = paddingSize;
   } else if (selectedImageIndex !== null) {
     const isLastImage = selectedImageIndex >= selectedImages.length - 1;
-    spacingStatus.textContent = isLastImage ? "Última imagem selecionada: ajuste apenas o padding geral." : "Imagem selecionada: ajuste o espaço até a próxima e o padding geral.";
+    spacingStatus.textContent = isLastImage
+      ? t("lastImage", "Última imagem selecionada: ajuste apenas o padding geral.")
+      : t("selectedImage", "Imagem selecionada: ajuste o espaço até a próxima e o padding geral.");
     selectedImageLabel.textContent = isLastImage ? `${selectedImageIndex + 1}` : `${selectedImageIndex + 1} → ${selectedImageIndex + 2}`;
     spacingInput.value = isLastImage ? 0 : gapSizes[selectedImageIndex] || 0;
     spacingInput.disabled = isLastImage;
     paddingInput.value = paddingSize;
   } else if (hasImages) {
-    spacingStatus.textContent = "Clique em uma imagem na prévia para escolher o espaço até a próxima.";
+    spacingStatus.textContent = t("chooseSpace", "Clique em uma imagem na prévia para escolher o espaço até a próxima.");
     selectedImageLabel.textContent = "—";
     spacingInput.value = 0;
     paddingInput.value = paddingSize;
   } else {
-    spacingStatus.textContent = "Adicione imagens e clique em uma delas para editar espaço e padding.";
+    spacingStatus.textContent = t("addImagesToEdit", "Adicione imagens e clique em uma delas para editar espaço e padding.");
     selectedImageLabel.textContent = "—";
     spacingInput.value = 0;
     paddingInput.value = paddingSize;
@@ -1769,9 +1951,13 @@ function applyTheme() {
   document.body.classList.toggle("dark-theme", isDarkTheme);
   document.documentElement.classList.toggle("dark-theme", isDarkTheme);
   themeToggle.setAttribute("aria-pressed", String(isDarkTheme));
-  themeToggle.setAttribute("aria-label", isDarkTheme ? "Ativar modo claro" : "Ativar modo escuro");
+  themeToggle.setAttribute("aria-label", isDarkTheme
+    ? t("themeLightAria", "Ativar modo claro")
+    : t("themeDarkAria", "Ativar modo escuro"));
   themeToggle.querySelector(".theme-toggle-icon").textContent = isDarkTheme ? "☀" : "☾";
-  themeToggle.querySelector(".theme-toggle-label").textContent = isDarkTheme ? "claro" : "escuro";
+  themeToggle.querySelector(".theme-toggle-label").textContent = isDarkTheme
+    ? t("light", "claro")
+    : t("dark", "escuro");
 }
 
 function chooseSurfaceColor(event, recordHistory = true) {
@@ -1799,8 +1985,8 @@ function setColor(color, recordHistory = true, shouldRender = true) {
 function updateColorControls() {
   const activeColor = getActiveColor();
   const isTransparent = !activeColor;
-  colorContextLabel.textContent = activeColorTarget === "border" ? "Cor da borda" : "Cor do vazio";
-  colorValue.textContent = isTransparent ? "transparente" : activeColor.toUpperCase();
+  colorContextLabel.textContent = activeColorTarget === "border" ? t("borderColor", "Cor da borda") : t("emptyColor", "Cor do vazio");
+  colorValue.textContent = isTransparent ? t("transparent", "transparente") : activeColor.toUpperCase();
   const displayColor = hsvToHex(selectedHue, selectedSaturation, selectedValue);
   colorSurface.style.setProperty("--picker-hue", selectedHue);
   colorSurfaceCursor.style.left = `${selectedSaturation * 100}%`;
@@ -1816,8 +2002,8 @@ function updateColorControls() {
   transparencySlider.value = Math.round((1 - getActiveOpacity()) * 100);
   transparencySlider.disabled = isTransparent;
   transparencyValue.textContent = isTransparent ? "—" : `${Math.round((1 - getActiveOpacity()) * 100)}%`;
-  emptyColorSummary.textContent = selectedColor ? selectedColor.toUpperCase() : "transparente";
-  borderColorSummary.textContent = borderColor ? borderColor.toUpperCase() : "transparente";
+  emptyColorSummary.textContent = selectedColor ? selectedColor.toUpperCase() : t("transparent", "transparente");
+  borderColorSummary.textContent = borderColor ? borderColor.toUpperCase() : t("transparent", "transparente");
   colorTargetButtons.forEach((button) => {
     const isActive = button.dataset.colorTarget === activeColorTarget;
     button.classList.toggle("is-active", isActive);
@@ -2171,10 +2357,16 @@ async function copyComposition() {
 
 function showCopyFeedback(label) {
   window.clearTimeout(copyFeedbackTimer);
-  copyLabel.textContent = label;
+  const localizedLabel = uiLanguage === "en"
+    ? label === "Copiado" ? t("copied", "Copiado")
+      : label === "Indisponível" ? t("unavailable", "Indisponível")
+        : label === "Falhou" ? t("failed", "Falhou")
+          : /^\d+ copiadas$/.test(label) ? t("copiedCount", (count) => `${count} copiadas`)(label.match(/^\d+/)[0]) : label
+    : label;
+  copyLabel.textContent = localizedLabel;
   copyButton.classList.add("is-confirmed");
   copyFeedbackTimer = window.setTimeout(() => {
-    copyLabel.textContent = "Copiar";
+    copyLabel.textContent = t("copy", "Copiar");
     copyButton.classList.remove("is-confirmed");
   }, 1500);
 }
@@ -2197,7 +2389,8 @@ function showHistoryToast(action) {
   countBadge.textContent = count > 1 ? String(count) : "";
   countBadge.classList.toggle("is-visible", count > 1);
   toast.setAttribute("role", "status");
-  toast.setAttribute("aria-label", `${action === "undo" ? "Desfeito" : "Refeito"}${count > 1 ? `, ${count} vezes` : ""}`);
+  const actionLabel = action === "undo" ? t("undone", "Desfeito") : t("redone", "Refeito");
+  toast.setAttribute("aria-label", `${actionLabel}${count > 1 ? `, ${count} ${t("times", "vezes")}` : ""}`);
   toast.classList.remove("is-leaving");
   if (wasExisting) {
     toast.classList.remove("is-refreshing");
@@ -2380,6 +2573,7 @@ function escapeHtml(value) {
 }
 
 try { isDarkTheme = localStorage.getItem("imgt-theme") !== "light"; } catch (error) { isDarkTheme = true; }
+applyBrowserLanguage();
 initializeDragScrolling();
 applyTheme();
 updateLayoutLabel();
