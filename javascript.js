@@ -3,9 +3,12 @@ const uploadCard = document.getElementById("upload-card");
 const workspace = document.getElementById("workspace");
 const demoStrip = document.getElementById("demo-strip");
 const canvas = document.getElementById("composition-canvas");
+const canvasFrame = document.querySelector(".canvas-frame");
 const canvasScroll = document.getElementById("canvas-scroll");
+const canvasStage = document.getElementById("canvas-stage");
 const canvasSelectionLayer = document.getElementById("canvas-selection-layer");
-const context = canvas.getContext("2d");
+const canvasZoomLabel = document.getElementById("canvas-zoom-label");
+let context = canvas.getContext("2d");
 const fileList = document.getElementById("file-list");
 const imageCount = document.getElementById("image-count");
 const compositionSize = document.getElementById("composition-size");
@@ -20,6 +23,11 @@ const historyToastStack = document.getElementById("history-toast-stack");
 const scrollFireworksLayer = document.getElementById("scroll-fireworks-layer");
 const themeToggle = document.getElementById("theme-toggle");
 const aboutButton = document.getElementById("about-button");
+const settingsButton = document.getElementById("settings-button");
+const settingsOverlay = document.getElementById("settings-overlay");
+const settingsClose = document.getElementById("settings-close");
+const scrollStarsToggle = document.getElementById("scroll-stars-toggle");
+const previewQualitySelect = document.getElementById("preview-quality-select");
 const aboutOverlay = document.getElementById("about-overlay");
 const aboutClose = document.getElementById("about-close");
 const deleteImageButton = document.getElementById("delete-image-button");
@@ -32,6 +40,11 @@ const borderColorSummary = document.getElementById("border-color-summary");
 const transparentToggle = document.getElementById("transparent-toggle");
 const colorSurface = document.getElementById("color-surface");
 const colorSurfaceCursor = document.getElementById("color-surface-cursor");
+const erasePickerCard = document.getElementById("erase-picker-card");
+const erasePickerSwatch = document.getElementById("erase-picker-swatch");
+const erasePickerHex = document.getElementById("erase-picker-hex");
+const erasePickerName = document.getElementById("erase-picker-name");
+const erasePickerType = document.getElementById("erase-picker-type");
 const hueSlider = document.getElementById("hue-slider");
 const redInput = document.getElementById("red-input");
 const greenInput = document.getElementById("green-input");
@@ -100,6 +113,20 @@ function t(key, portuguese) {
     borderColor: "Border color",
     light: "light",
     dark: "dark",
+    erasedColorType: "Erased color",
+    chooseColor: "Choose a color",
+    black: "Black",
+    white: "White",
+    gray: "Gray",
+    brown: "Brown",
+    red: "Red",
+    orange: "Orange",
+    yellow: "Yellow",
+    green: "Green",
+    cyan: "Cyan",
+    blue: "Blue",
+    purple: "Purple",
+    pink: "Pink",
     themeLightAria: "Activate light mode",
     themeDarkAria: "Activate dark mode",
     undone: "Undone",
@@ -127,6 +154,20 @@ function applyBrowserLanguage() {
   setLanguageText(".topbar-note", "image composition");
   setLanguageText(".theme-toggle-label", "dark");
   setLanguageText(".about-button > span:last-child", "About");
+  settingsButton?.setAttribute("aria-label", "Open settings");
+  settingsButton?.setAttribute("title", "Settings");
+  setLanguageText("#settings-title", "Settings");
+  setLanguageText(".settings-dialog-header .eyebrow", "settings");
+  setLanguageText(".settings-dialog-header p", "Customize preview performance without reducing the final file quality.");
+  setLanguageText(".settings-toggle-option strong", "Scroll stars");
+  setLanguageText(".settings-toggle-option small", "Show or hide the stars that appear when the page is scrolled.");
+  setLanguageText(".settings-option:not(.settings-toggle-option) strong", "Preview resolution");
+  setLanguageText(".settings-option:not(.settings-toggle-option) small", "A lower resolution makes the preview lighter. Export and copy still use the original resolution.");
+  setLanguageText("#preview-quality-select option[value='1']", "Original · 100%");
+  setLanguageText("#preview-quality-select option[value='0.75']", "High · 75%");
+  setLanguageText("#preview-quality-select option[value='0.5']", "Medium · 50%");
+  setLanguageText("#preview-quality-select option[value='0.25']", "Light · 25%");
+  settingsClose?.setAttribute("aria-label", "Close settings");
   const heroEyebrow = document.querySelector(".hero > .eyebrow");
   if (heroEyebrow?.lastChild) heroEyebrow.lastChild.textContent = " local tool · your files never leave the browser";
   setLanguageText("#page-title", "Join images.<br /><em>Your way.</em>", true);
@@ -227,9 +268,9 @@ function translateManualToEnglish() {
   setCard(9, "spacing", "Space and padding", "Select an image, enter the space to the next one and click <strong>Apply space</strong>. <strong>Global padding</strong> adds margin around the composition. <strong>Select all</strong> applies the same space to every gap.");
   setCard(11, "preview", "Quick interactions", null);
   const rowSets = {
-    7: [["+ Add more", "Adds more images without removing the current ones."], ["Highlight", "Marks selected images with the selection color when copied or exported."], ["Vertical", "Switches between a horizontal row and vertically stacked images."], ["Copy", "Copies the whole composition. With an image selected, Ctrl + C copies only that image."], ["Export", "Saves the final composition as PNG and lets you choose the name and location."], ["☾ / ☀", "Switches between dark and light themes."], ["?", "Opens this manual."]],
-    10: [["Empty color / Border color", "Chooses which area is edited. HEX, RGB, the color surface and sliders change the active color."], ["Transparent", "Removes the active color and makes the empty area or border transparent. Click again to return to the chosen color."], ["Erase borders", "Removes colors connected to the borders of selected images."], ["Erase colors", "Activates the eyedropper. Click a color in the preview to remove it from selected images."], ["Reset", "Removes erased colors from selected images. The list supports Ctrl or Shift selection and Delete."], ["Rescale", "Crops transparent space created by removing colors or borders from selected images."], ["Image borders", "Sets thickness, general radius and the four individual corner radii."]],
-    11: [["Select", "Click an image quickly to select it. Click a selected image again to remove its selection."], ["Ctrl and Shift", "Hold Ctrl to add or remove individual images. Hold Shift to select the range between the current selection and the clicked image."], ["Select all", "Use the Select all button or Ctrl + A. Press it again to clear the selection."], ["Reorder in preview", "Hold the left button on an image, move it to another position and release to confirm. The rearrangement animation appears after the move."], ["Reorder in list", "In the image list below the preview, hold an item or its icon and drag it to the desired position."], ["Navigate preview", "Hold the right button and move the mouse to pan the preview. Inertia continues the movement briefly after release."], ["Both buttons", "You can hold an image with the left button and, without releasing it, use the right button to navigate the preview."], ["Mouse wheel", "Use the wheel to scroll the page, preview or color list depending on where the pointer is. Scrolling is smooth and accelerated."], ["Hover and glow", "Hovering an image shows its selection border. Clicking it shows a quick glow contained within the image."]],
+    7: [["+ Add more", "Adds more images without removing the current ones."], ["Highlight", "Marks selected images with the selection color when copied or exported."], ["Vertical", "Switches between a horizontal row and vertically stacked images."], ["Copy", "Copies the whole composition. With an image selected, Ctrl + C copies only that image."], ["Export", "Saves the final composition as PNG and lets you choose the name and location."], ["☾ / ☀", "Switches between dark and light themes."], ["?", "Opens this manual."], ["⚙", "Opens settings for scroll stars and preview resolution."]],
+    10: [["Empty color / Border color", "Chooses which area is edited. HEX, RGB, the color surface and sliders change the active color."], ["Transparent", "Removes the active color and makes the empty area or border transparent. Click again to return to the chosen color."], ["Erase borders", "Removes colors connected to the borders of selected images."], ["Erase colors", "Activates the eyedropper. Click a color in the preview to remove it from selected images. The card shows its swatch, HEX and color name."], ["Reset", "Removes erased colors from selected images. The list supports Ctrl or Shift selection and Delete."], ["Rescale", "Crops transparent space created by removing colors or borders from selected images."], ["Image borders", "Sets thickness, general radius and the four individual corner radii."]],
+    11: [["Select", "Click an image quickly to select it. Click a selected image again to remove its selection."], ["Ctrl and Shift", "Hold Ctrl to add or remove individual images. Hold Shift to select the range between the current selection and the clicked image."], ["Select all", "Use the Select all button or Ctrl + A. Press it again to clear the selection."], ["Reorder in preview", "Hold the left button on an image, move it to another position and release to confirm. The rearrangement animation appears after the move."], ["Reorder in list", "In the image list below the preview, hold an item or its icon and drag it to the desired position."], ["Navigate preview", "Hold the right button and move the mouse to pan the preview. Inertia continues the movement briefly after release."], ["Both buttons", "You can hold an image with the left button and, without releasing it, use the right button to navigate the preview."], ["Mouse wheel", "Use the wheel to scroll the page, preview or color list depending on where the pointer is. Scrolling is smooth and accelerated."], ["Preview zoom", "Hold Shift and use the wheel inside the preview to zoom in or out. The zoom only affects the preview area."], ["Hover and glow", "Hovering an image shows its selection border. Clicking it shows a quick glow contained within the image."]],
     12: [["Ctrl + A", "Selects every image. Press it again to clear the selection."], ["Ctrl + C", "Copies selected images individually to the browser clipboard."], ["Ctrl + V", "Adds pasted images after the last selected image."], ["Delete", "Deletes selected images or, when the color list is focused, selected colors."], ["Ctrl + Z", "Undoes the last change. Ctrl + Shift + Z redoes it."], ["Enter", "Confirms numeric values for space, padding, borders, RGB, HEX and sliders."], ["Esc", "Closes the manual when it is open."], ["Drag files", "Drop images onto the page to add them without opening the file picker."]]
   };
   Object.entries(rowSets).forEach(([cardIndex, rows]) => {
@@ -302,6 +343,11 @@ let aboutPreviousFocus = null;
 let compositionRenderFrameId = null;
 let compositionRenderShouldScroll = false;
 let internalImageClipboard = [];
+let previewZoom = 1;
+let previewQuality = 1;
+let showScrollFireworks = true;
+let compositionWidth = 0;
+let compositionHeight = 0;
 
 const orderNames = { desc: "maior → menor", asc: "menor → maior", custom: "ordem personalizada" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
@@ -429,8 +475,15 @@ copyButton.addEventListener("click", copyComposition);
 themeToggle.addEventListener("click", toggleTheme);
 aboutButton.addEventListener("click", openAbout);
 aboutClose.addEventListener("click", closeAbout);
+settingsButton.addEventListener("click", () => settingsOverlay.hidden ? openSettings() : closeSettings());
+settingsClose.addEventListener("click", closeSettings);
+scrollStarsToggle.addEventListener("change", (event) => setScrollFireworksEnabled(event.target.checked));
+previewQualitySelect.addEventListener("change", (event) => setPreviewQuality(event.target.value));
 aboutOverlay.addEventListener("click", (event) => {
   if (event.target === aboutOverlay) closeAbout();
+});
+settingsOverlay.addEventListener("click", (event) => {
+  if (event.target === settingsOverlay) closeSettings();
 });
 erasedColorsList.addEventListener("keydown", (event) => {
   if (event.key !== "Delete" || isTypingTarget(event.target) || !selectedErasedColorIndexes.size) return;
@@ -440,6 +493,7 @@ erasedColorsList.addEventListener("keydown", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !aboutOverlay.hidden) closeAbout();
+  if (event.key === "Escape" && !settingsOverlay.hidden) closeSettings();
 });
 deleteImageButton.addEventListener("click", deleteSelectedImage);
 canvas.addEventListener("click", handleCanvasClick);
@@ -753,6 +807,9 @@ function renderComposition(shouldScroll = false, animate = true) {
   if (!selectedImages.length) {
     canvas.width = 0;
     canvas.height = 0;
+    compositionWidth = 0;
+    compositionHeight = 0;
+    applyPreviewZoom();
     displayedImages = [];
     imageRects = [];
     hoveredImageIndex = null;
@@ -779,8 +836,14 @@ function renderComposition(shouldScroll = false, animate = true) {
   const totalWidth = isVertical ? maxWidth + paddingSize * 2 : orderedImages.reduce((sum, { image }) => sum + image.width, 0) + totalGap + paddingSize * 2;
   const totalHeight = isVertical ? orderedImages.reduce((sum, { image }) => sum + image.height, 0) + totalGap + paddingSize * 2 : maxHeight + paddingSize * 2;
 
-  canvas.width = totalWidth;
-  canvas.height = totalHeight;
+  compositionWidth = totalWidth;
+  compositionHeight = totalHeight;
+  canvas.width = Math.max(1, Math.round(totalWidth * previewQuality));
+  canvas.height = Math.max(1, Math.round(totalHeight * previewQuality));
+  context = canvas.getContext("2d");
+  context.setTransform(previewQuality, 0, 0, previewQuality, 0, 0);
+  context.imageSmoothingEnabled = true;
+  applyPreviewZoom();
   context.clearRect(0, 0, totalWidth, totalHeight);
   if (selectedColor && colorOpacity > 0) {
     context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
@@ -1162,9 +1225,10 @@ function updateLayoutLabel() {
 
 function selectImageAt(event) {
   if (!imageRects.length) return;
+  if (eraseMode) positionErasePicker(event);
   const bounds = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / bounds.width;
-  const scaleY = canvas.height / bounds.height;
+  const scaleX = compositionWidth / bounds.width;
+  const scaleY = compositionHeight / bounds.height;
   const x = (event.clientX - bounds.left) * scaleX;
   const y = (event.clientY - bounds.top) * scaleY;
   const target = imageRects.find((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
@@ -1173,7 +1237,9 @@ function selectImageAt(event) {
     return;
   }
   if (eraseMode) {
-    const pixel = context.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+    const pixelX = clamp(Math.floor(x * previewQuality), 0, Math.max(0, canvas.width - 1));
+    const pixelY = clamp(Math.floor(y * previewQuality), 0, Math.max(0, canvas.height - 1));
+    const pixel = context.getImageData(pixelX, pixelY, 1, 1).data;
     addErasedColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
     eraseMode = false;
     eraseColorButton.classList.remove("is-active");
@@ -1196,14 +1262,15 @@ function handleCanvasClick(event) {
 function getCanvasImageAt(event) {
   if (!imageRects.length) return null;
   const bounds = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / bounds.width;
-  const scaleY = canvas.height / bounds.height;
+  const scaleX = compositionWidth / bounds.width;
+  const scaleY = compositionHeight / bounds.height;
   const x = (event.clientX - bounds.left) * scaleX;
   const y = (event.clientY - bounds.top) * scaleY;
   return imageRects.find((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) || null;
 }
 
 function updateHoveredImage(event) {
+  updateErasePickerFromPointer(event);
   const nextIndex = getCanvasImageAt(event)?.index ?? null;
   if (nextIndex === hoveredImageIndex) return;
   hoveredImageIndex = nextIndex;
@@ -1214,6 +1281,34 @@ function clearHoveredImage() {
   if (hoveredImageIndex === null) return;
   hoveredImageIndex = null;
   updateSelectionLayer();
+}
+
+function positionErasePicker(event) {
+  if (!erasePickerCard || !canvasFrame || !event) return;
+  const frameBounds = canvasFrame.getBoundingClientRect();
+  const cardWidth = erasePickerCard.offsetWidth || 230;
+  const cardHeight = erasePickerCard.offsetHeight || 60;
+  const left = clamp(event.clientX - frameBounds.left + 16, 8, Math.max(8, frameBounds.width - cardWidth - 8));
+  const top = clamp(event.clientY - frameBounds.top - cardHeight - 14, 8, Math.max(8, frameBounds.height - cardHeight - 8));
+  erasePickerCard.style.left = `${left}px`;
+  erasePickerCard.style.top = `${top}px`;
+}
+
+function updateErasePickerFromPointer(event) {
+  if (!eraseMode || !erasePickerCard) return;
+  positionErasePicker(event);
+  const target = getCanvasImageAt(event);
+  if (!target) {
+    updateErasePickerCard(null, event);
+    return;
+  }
+  const bounds = canvas.getBoundingClientRect();
+  const x = clamp((event.clientX - bounds.left) * compositionWidth / bounds.width, 0, Math.max(0, compositionWidth - 1));
+  const y = clamp((event.clientY - bounds.top) * compositionHeight / bounds.height, 0, Math.max(0, compositionHeight - 1));
+  const pixelX = clamp(Math.floor(x * previewQuality), 0, Math.max(0, canvas.width - 1));
+  const pixelY = clamp(Math.floor(y * previewQuality), 0, Math.max(0, canvas.height - 1));
+  const pixel = context.getImageData(pixelX, pixelY, 1, 1).data;
+  updateErasePickerCard({ r: pixel[0], g: pixel[1], b: pixel[2] }, event);
 }
 
 function isPointerInsideCanvasScroll(event) {
@@ -1259,6 +1354,40 @@ function updateSelectionLayer() {
     if (reorderHoverIndex === rect.index) classes.push("is-reorder-target");
     return `<div class="${classes.join(" ")}" data-image-index="${rect.index}" style="left:${rect.left - expansion}px;top:${rect.top - expansion}px;width:${width + selectionThickness}px;height:${height + selectionThickness}px;border-radius:${selectionRadii.topLeft}px ${selectionRadii.topRight}px ${selectionRadii.bottomRight}px ${selectionRadii.bottomLeft}px;--selection-thickness:${selectionThickness}px"></div>`;
   }).join("");
+}
+
+function applyPreviewZoom() {
+  if (!canvasStage || !canvas) return;
+  const width = compositionWidth * previewZoom;
+  const height = compositionHeight * previewZoom;
+  canvasStage.style.width = `${width}px`;
+  canvasStage.style.height = `${height}px`;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  canvasSelectionLayer.style.width = `${compositionWidth}px`;
+  canvasSelectionLayer.style.height = `${compositionHeight}px`;
+  canvasSelectionLayer.style.right = "auto";
+  canvasSelectionLayer.style.bottom = "auto";
+  canvasSelectionLayer.style.transform = `scale(${previewZoom})`;
+  canvasSelectionLayer.style.transformOrigin = "top left";
+  if (canvasZoomLabel) canvasZoomLabel.textContent = `${Math.round(previewZoom * 100)}%`;
+}
+
+function setPreviewZoom(nextZoom, event = null) {
+  const next = clamp(nextZoom, .5, 3);
+  if (Math.abs(next - previewZoom) < .001) return;
+  const beforeBounds = canvas.getBoundingClientRect();
+  const pointerX = event ? event.clientX : beforeBounds.left + beforeBounds.width / 2;
+  const pointerY = event ? event.clientY : beforeBounds.top + beforeBounds.height / 2;
+  const anchorX = clamp((pointerX - beforeBounds.left) / Math.max(1, beforeBounds.width), 0, 1);
+  const anchorY = clamp((pointerY - beforeBounds.top) / Math.max(1, beforeBounds.height), 0, 1);
+  previewZoom = next;
+  applyPreviewZoom();
+  const afterBounds = canvas.getBoundingClientRect();
+  const anchoredPointX = afterBounds.left + afterBounds.width * anchorX;
+  const anchoredPointY = afterBounds.top + afterBounds.height * anchorY;
+  canvasScroll.scrollLeft += anchoredPointX - pointerX;
+  canvasScroll.scrollTop += anchoredPointY - pointerY;
 }
 
 function cancelScrollInertia() {
@@ -1397,8 +1526,8 @@ function getReorderTargetIndex(event) {
   if (!imageRects.length) return null;
   const bounds = canvas.getBoundingClientRect();
   if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return null;
-  const scaleX = canvas.width / bounds.width;
-  const scaleY = canvas.height / bounds.height;
+  const scaleX = compositionWidth / bounds.width;
+  const scaleY = compositionHeight / bounds.height;
   const x = (event.clientX - bounds.left) * scaleX;
   const y = (event.clientY - bounds.top) * scaleY;
   let nearestIndex = null;
@@ -1471,12 +1600,20 @@ function finishCanvasReorder(event) {
 }
 
 function handleWheelScroll(event) {
+  const elementTarget = event.target instanceof Element ? event.target : null;
+  const canvasTarget = elementTarget?.closest(".canvas-scroll");
+  if (event.shiftKey && canvasTarget === canvasScroll && imageRects.length) {
+    event.preventDefault();
+    cancelScrollInertia();
+    const { x: zoomX, y: zoomY } = getWheelDelta(event);
+    const delta = zoomY || zoomX;
+    if (delta) setPreviewZoom(previewZoom * Math.pow(1.12, -delta / 100), event);
+    return;
+  }
   if (event.ctrlKey) return;
   const { x: deltaX, y: deltaY } = getWheelDelta(event);
   if (!deltaX && !deltaY) return;
-  const elementTarget = event.target instanceof Element ? event.target : null;
   const aboutTarget = elementTarget?.closest(".about-dialog");
-  const canvasTarget = elementTarget?.closest(".canvas-scroll");
   const erasedColorsTarget = elementTarget?.closest(".erased-colors-list");
   const pageTarget = getPageScrollTarget();
   const preferredTarget = aboutTarget || erasedColorsTarget || canvasTarget || pageTarget;
@@ -1490,7 +1627,7 @@ function handleWheelScroll(event) {
 }
 
 function scheduleScrollFireworks(direction) {
-  if (!scrollFireworksLayer) return;
+  if (!scrollFireworksLayer || !showScrollFireworks) return;
   pendingFireworkDirection = direction;
   if (fireworkFrameId !== null) return;
   fireworkFrameId = requestAnimationFrame(() => {
@@ -1502,7 +1639,7 @@ function scheduleScrollFireworks(direction) {
 }
 
 function spawnScrollFireworks(direction) {
-  if (!scrollFireworksLayer) return;
+  if (!scrollFireworksLayer || !showScrollFireworks) return;
   const now = performance.now();
   if (direction === lastFireworksDirection && now - lastFireworksAt < 90) return;
   lastFireworksAt = now;
@@ -1579,7 +1716,10 @@ function moveCanvasDrag(event) {
   const deltaX = event.clientX - canvasDragState.lastX;
   const deltaY = event.clientY - canvasDragState.lastY;
   const elapsed = Math.max(1, now - canvasDragState.lastTime);
-  const distance = Math.hypot(deltaX, deltaY);
+  const canPanBothAxes = previewZoom > 1.001;
+  const panX = canPanBothAxes || !isVertical ? deltaX : 0;
+  const panY = canPanBothAxes || isVertical ? deltaY : 0;
+  const distance = Math.hypot(panX, panY);
   if (!canvasDragState.moved && distance < 4) {
     canvasDragState.lastX = event.clientX;
     canvasDragState.lastY = event.clientY;
@@ -1594,10 +1734,10 @@ function moveCanvasDrag(event) {
     canvasScroll.setPointerCapture?.(event.pointerId);
   }
   event.preventDefault();
-  canvasScroll.scrollLeft -= deltaX;
-  canvasScroll.scrollTop -= deltaY;
-  canvasDragState.velocityX = -deltaX / elapsed;
-  canvasDragState.velocityY = -deltaY / elapsed;
+  canvasScroll.scrollLeft -= panX;
+  canvasScroll.scrollTop -= panY;
+  canvasDragState.velocityX = -panX / elapsed;
+  canvasDragState.velocityY = -panY / elapsed;
   canvasDragState.lastX = event.clientX;
   canvasDragState.lastY = event.clientY;
   canvasDragState.lastTime = now;
@@ -1632,6 +1772,7 @@ function handleGlobalPointerRelease(event) {
 
 function handleCanvasPointerLeave() {
   clearHoveredImage();
+  if (eraseMode && erasePickerCard) erasePickerCard.hidden = true;
 }
 
 function initializeDragScrolling() {
@@ -1640,6 +1781,7 @@ function initializeDragScrolling() {
   canvasScroll.addEventListener("pointerup", finishCanvasDrag);
   canvasScroll.addEventListener("pointercancel", finishCanvasDrag);
   canvasScroll.addEventListener("pointerleave", handleCanvasPointerLeave);
+  document.addEventListener("contextmenu", (event) => event.preventDefault());
   document.addEventListener("wheel", handleWheelScroll, { passive: false });
 }
 
@@ -1695,14 +1837,54 @@ function resetErasedColors() {
 function updateEraseStatus() {
   if (!erasedColors.length) {
     eraseStatus.textContent = t("erasedColor", "Cor apagada: ()");
-    return;
-  }
-  if (selectedErasedColorIndexes.size === 1) {
+  } else if (selectedErasedColorIndexes.size === 1) {
     const index = [...selectedErasedColorIndexes][0];
     eraseStatus.textContent = t("erasedColorValue", (value) => `Cor apagada: (${value})`)(rgbToHex(erasedColors[index]).toUpperCase());
-    return;
+  } else {
+    eraseStatus.textContent = t("erasedColorsCount", (count) => `Cores apagadas: (${count})`)(erasedColors.length);
   }
-  eraseStatus.textContent = t("erasedColorsCount", (count) => `Cores apagadas: (${count})`)(erasedColors.length);
+  updateErasePickerCard();
+}
+
+function getColorName(color) {
+  if (!color) return t("chooseColor", "Selecione uma cor");
+  const { h, s, v } = rgbToHsv(color);
+  if (v < .12) return t("black", "Preto");
+  if (s < .08 && v > .9) return t("white", "Branco");
+  if (s < .12) return t("gray", "Cinza");
+  if (v < .42 && h >= 5 && h < 45) return t("brown", "Marrom");
+  if (h < 15 || h >= 345) return t("red", "Vermelho");
+  if (h < 45) return t("orange", "Laranja");
+  if (h < 70) return t("yellow", "Amarelo");
+  if (h < 165) return t("green", "Verde");
+  if (h < 205) return t("cyan", "Ciano");
+  if (h < 255) return t("blue", "Azul");
+  if (h < 315) return t("purple", "Roxo");
+  return t("pink", "Rosa");
+}
+
+function updateErasePickerCard(colorOverride, event = null) {
+  if (!erasePickerCard) return;
+  const shouldShow = eraseMode || Boolean(eraseColor);
+  erasePickerCard.hidden = !shouldShow;
+  if (!shouldShow) return;
+  if (event) positionErasePicker(event);
+  const color = colorOverride !== undefined
+    ? colorOverride
+    : eraseColor || (selectedErasedColorIndexes.size ? erasedColors[[...selectedErasedColorIndexes].at(-1)] : null);
+  if (color) {
+    const hex = rgbToHex(color).toUpperCase();
+    erasePickerSwatch.style.background = hex;
+    erasePickerSwatch.classList.remove("is-empty");
+    erasePickerHex.textContent = hex;
+    erasePickerName.textContent = getColorName(color);
+  } else {
+    erasePickerSwatch.style.background = "";
+    erasePickerSwatch.classList.add("is-empty");
+    erasePickerHex.textContent = "—";
+    erasePickerName.textContent = t("chooseColor", "Selecione uma cor");
+  }
+  erasePickerType.textContent = t("erasedColorType", "Cor apagada");
 }
 
 function renderErasedColorsList() {
@@ -1939,6 +2121,48 @@ function closeAbout() {
   aboutOverlay.hidden = true;
   document.body.classList.remove("modal-open");
   if (aboutPreviousFocus instanceof HTMLElement) aboutPreviousFocus.focus();
+}
+
+function loadUserSettings() {
+  try {
+    const savedStars = localStorage.getItem("captimage-scroll-stars");
+    const savedQuality = Number(localStorage.getItem("captimage-preview-quality"));
+    if (savedStars !== null) showScrollFireworks = savedStars !== "false";
+    if ([1, .75, .5, .25].includes(savedQuality)) previewQuality = savedQuality;
+  } catch (error) {
+    showScrollFireworks = true;
+    previewQuality = 1;
+  }
+  if (scrollStarsToggle) scrollStarsToggle.checked = showScrollFireworks;
+  if (previewQualitySelect) previewQualitySelect.value = String(previewQuality);
+}
+
+function openSettings() {
+  settingsOverlay.hidden = false;
+  settingsButton.classList.add("is-open");
+  document.body.classList.add("modal-open");
+  settingsClose.focus();
+}
+
+function closeSettings() {
+  settingsOverlay.hidden = true;
+  settingsButton.classList.remove("is-open");
+  if (aboutOverlay.hidden) document.body.classList.remove("modal-open");
+  settingsButton.focus();
+}
+
+function setPreviewQuality(value) {
+  const nextQuality = Number(value);
+  if (![1, .75, .5, .25].includes(nextQuality) || nextQuality === previewQuality) return;
+  previewQuality = nextQuality;
+  try { localStorage.setItem("captimage-preview-quality", String(previewQuality)); } catch (error) { /* armazenamento opcional */ }
+  if (selectedImages.length) renderComposition(false, false);
+}
+
+function setScrollFireworksEnabled(enabled) {
+  showScrollFireworks = Boolean(enabled);
+  if (!showScrollFireworks && scrollFireworksLayer) scrollFireworksLayer.replaceChildren();
+  try { localStorage.setItem("captimage-scroll-stars", String(showScrollFireworks)); } catch (error) { /* armazenamento opcional */ }
 }
 
 function toggleTheme() {
@@ -2239,7 +2463,8 @@ function reorderImages(fromIndex, toIndex) {
 async function exportComposition() {
   if (!selectedImages.length) return;
   stopCurrentAnimation();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  const exportCanvas = renderOriginalComposition();
+  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
   if (!blob) return;
 
   if (typeof window.showSaveFilePicker === "function") {
@@ -2338,6 +2563,25 @@ async function copySelectedImages(entries) {
   }
 }
 
+function renderOriginalComposition() {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = Math.max(1, compositionWidth);
+  exportCanvas.height = Math.max(1, compositionHeight);
+  const previousContext = context;
+  context = exportCanvas.getContext("2d");
+  context.clearRect(0, 0, compositionWidth, compositionHeight);
+  if (selectedColor && colorOpacity > 0) {
+    context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
+    context.fillRect(0, 0, compositionWidth, compositionHeight);
+  }
+  imageRects.forEach((rect) => {
+    drawRenderableImage(getRenderableImage(rect.image), rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, rect.borderSettings);
+  });
+  if (highlightEnabled) drawHighlightBorders(imageRects.map((rect) => ({ ...rect, opacity: 1 })));
+  context = previousContext;
+  return exportCanvas;
+}
+
 async function copyComposition() {
   if (!selectedImages.length) return;
   if (!navigator.clipboard?.write || !window.ClipboardItem) {
@@ -2345,7 +2589,8 @@ async function copyComposition() {
     return;
   }
   stopCurrentAnimation();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  const exportCanvas = renderOriginalComposition();
+  const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
   if (!blob) return;
   try {
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -2573,6 +2818,7 @@ function escapeHtml(value) {
 }
 
 try { isDarkTheme = localStorage.getItem("imgt-theme") !== "light"; } catch (error) { isDarkTheme = true; }
+loadUserSettings();
 applyBrowserLanguage();
 initializeDragScrolling();
 applyTheme();

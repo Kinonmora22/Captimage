@@ -16,6 +16,16 @@
 
 * {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 html {
@@ -264,6 +274,38 @@ input[type="number"]::-webkit-outer-spin-button {
   font: 600 11px "Manrope", sans-serif;
 }
 
+.settings-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--card);
+  font-size: 17px;
+  line-height: 1;
+  transition: border-color .2s ease, color .2s ease, background .2s ease, transform .45s var(--ease-spring), box-shadow .2s ease;
+}
+
+.settings-button:hover,
+.settings-button.is-open {
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.settings-button > span {
+  display: block;
+  transition: transform .45s var(--ease-spring);
+}
+
+.settings-button.is-open > span {
+  transform: rotate(90deg);
+}
+
 body.modal-open {
   overflow: hidden;
 }
@@ -282,6 +324,151 @@ body.modal-open {
 
 .about-overlay[hidden] {
   display: none;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 101;
+  display: grid;
+  place-items: start end;
+  padding: 106px max(32px, calc((100vw - 1180px) / 2));
+  background: rgba(15, 21, 17, .18);
+  backdrop-filter: blur(3px);
+  animation: about-overlay-in .2s ease both;
+}
+
+.settings-overlay[hidden] {
+  display: none;
+}
+
+.settings-dialog {
+  width: min(430px, calc(100vw - 32px));
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent-dark) 32%, var(--line));
+  border-radius: 16px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .24), 0 0 0 1px rgba(255, 255, 255, .08) inset;
+  animation: about-dialog-in .32s var(--ease-out) both;
+}
+
+.settings-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-dialog h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  letter-spacing: -.04em;
+}
+
+.settings-dialog-header p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.settings-options {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.settings-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 54%, transparent);
+}
+
+.settings-option strong,
+.settings-option small {
+  display: block;
+}
+
+.settings-option strong {
+  font-size: 12px;
+}
+
+.settings-option small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.settings-option select {
+  min-width: 126px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: none;
+  color: var(--ink);
+  background: var(--card);
+  font: 10px "DM Mono", monospace;
+}
+
+.settings-option select:focus {
+  border-color: var(--accent-dark);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.settings-toggle-option {
+  position: relative;
+}
+
+.settings-toggle-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.settings-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background .2s ease;
+}
+
+.settings-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .22);
+  transition: transform .22s var(--ease-spring);
+}
+
+.settings-toggle-option input:checked + .settings-switch {
+  background: var(--accent-dark);
+}
+
+.settings-toggle-option input:checked + .settings-switch::after {
+  transform: translateX(18px);
+}
+
+.settings-toggle-option input:focus-visible + .settings-switch {
+  outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 2px;
 }
 
 .about-dialog {
@@ -483,6 +670,19 @@ kbd {
 
 body.dark-theme .topbar {
   background: rgba(23, 19, 17, .76);
+}
+
+body.dark-theme .settings-dialog {
+  background: rgba(37, 29, 25, .96);
+}
+
+body.dark-theme .settings-option {
+  background: rgba(42, 32, 28, .72);
+}
+
+body.dark-theme .settings-option select {
+  border-color: #574137;
+  background: #251d19;
 }
 
 body.dark-theme .brand:hover .brand-mark {
@@ -1291,6 +1491,92 @@ h2 {
   background: #eaf8df;
 }
 
+.erase-picker-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  margin: 9px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-dark) 48%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--card));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent-dark) 10%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: erase-picker-in .24s var(--ease-out) both;
+}
+
+.erase-picker-card[hidden] {
+  display: none;
+}
+
+.canvas-frame > .erase-picker-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 8;
+  width: min(230px, calc(100% - 16px));
+  margin: 0;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+.erase-picker-swatch {
+  width: 42px;
+  height: 42px;
+  border: 2px solid color-mix(in srgb, var(--card) 78%, var(--line));
+  border-radius: 8px;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 24%, transparent), inset 0 0 0 1px rgba(255, 255, 255, .12);
+}
+
+.erase-picker-swatch.is-empty {
+  background-color: #fff;
+  background-image: linear-gradient(45deg, #d8ded8 25%, transparent 25%), linear-gradient(-45deg, #d8ded8 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d8ded8 75%), linear-gradient(-45deg, transparent 75%, #d8ded8 75%);
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+  background-size: 14px 14px;
+}
+
+.erase-picker-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.erase-picker-copy strong {
+  overflow: hidden;
+  color: var(--ink);
+  font: 700 13px "DM Mono", monospace;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erase-picker-copy span,
+.erase-picker-type {
+  overflow: hidden;
+  color: var(--muted);
+  font: 10px "Manrope", sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erase-picker-type {
+  align-self: end;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--accent-dark);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  font: 8px "DM Mono", monospace;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+@keyframes erase-picker-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .layout-subtitle {
   margin: 0 0 6px;
   color: #8b958d;
@@ -1474,6 +1760,22 @@ h2 {
   box-shadow: var(--shadow);
 }
 
+.canvas-zoom-label {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 6px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  backdrop-filter: blur(8px);
+  font: 9px "DM Mono", monospace;
+  letter-spacing: .04em;
+  pointer-events: none;
+}
+
 .canvas-frame > * {
   position: relative;
   z-index: 1;
@@ -1481,8 +1783,9 @@ h2 {
 
 .canvas-scroll {
   min-height: 280px;
+  height: clamp(280px, 58vh, 560px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 24px;
   overflow: auto;
   cursor: grab;
@@ -1494,6 +1797,7 @@ h2 {
 .canvas-stage {
   position: relative;
   flex: 0 0 auto;
+  margin-block: auto;
   width: max-content;
   height: max-content;
 }
@@ -2035,6 +2339,31 @@ body.dark-theme .canvas-scroll {
 
 body.dark-theme .color-surface {
   border-color: #6c4a36;
+}
+
+body.dark-theme .erase-picker-card {
+  border-color: rgba(237, 121, 38, .58);
+  background: color-mix(in srgb, #4b2919 72%, var(--card));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .18), inset 0 0 0 1px rgba(237, 121, 38, .1);
+}
+
+body.dark-theme .erase-picker-swatch {
+  border-color: #594036;
+}
+
+body.dark-theme .erase-picker-swatch.is-empty {
+  background-color: #2a201c;
+  background-image: linear-gradient(45deg, #50382d 25%, transparent 25%), linear-gradient(-45deg, #50382d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #50382d 75%), linear-gradient(-45deg, transparent 75%, #50382d 75%);
+}
+
+body.dark-theme .erase-picker-type {
+  color: var(--accent);
+  background: rgba(237, 121, 38, .18);
+}
+
+body.dark-theme .canvas-zoom-label {
+  border-color: rgba(118, 85, 65, .78);
+  background: rgba(37, 29, 25, .8);
 }
 
 body.dark-theme #transparency-slider {
@@ -2737,6 +3066,7 @@ body.dark-theme .file-item.is-selected {
 
   .canvas-scroll {
     min-height: 200px;
+    height: min(420px, 60vh);
     padding: 15px;
   }
 }

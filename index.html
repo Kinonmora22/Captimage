@@ -35,6 +35,10 @@
           <span class="about-button-icon" aria-hidden="true">?</span>
           <span>Sobre</span>
         </button>
+        <button class="settings-button" id="settings-button" type="button" aria-haspopup="dialog"
+          aria-label="Abrir configurações" title="Configurações">
+          <span aria-hidden="true">⚙</span>
+        </button>
       </div>
     </header>
 
@@ -254,6 +258,15 @@
             <div class="canvas-selection-layer" id="canvas-selection-layer" aria-hidden="true"></div>
           </div>
         </div>
+        <div class="canvas-zoom-label" id="canvas-zoom-label" aria-live="polite">100%</div>
+        <div class="erase-picker-card" id="erase-picker-card" hidden aria-live="polite">
+          <span class="erase-picker-swatch" id="erase-picker-swatch" aria-hidden="true"></span>
+          <div class="erase-picker-copy">
+            <strong id="erase-picker-hex">—</strong>
+            <span id="erase-picker-name">Selecione uma cor</span>
+          </div>
+          <span class="erase-picker-type" id="erase-picker-type">Cor apagada</span>
+        </div>
       </div>
 
       <div class="spacing-panel-wrap">
@@ -370,6 +383,7 @@
             <div><strong>Exportar</strong><span>Salva a composição final em PNG e permite escolher nome e local do arquivo.</span></div>
             <div><strong>☾ / ☀</strong><span>Alterna entre o tema escuro e o tema claro.</span></div>
             <div><strong>?</strong><span>Abre este manual de uso.</span></div>
+            <div><strong>⚙</strong><span>Abre as configurações para controlar as estrelas do scroll e a resolução da prévia.</span></div>
           </div>
         </article>
 
@@ -411,6 +425,7 @@
             <div><strong>Navegar na prévia</strong><span>Segure o botão direito e mova o mouse para deslocar a área da prévia. Ao soltar, a inércia continua o movimento brevemente.</span></div>
             <div><strong>Dois botões juntos</strong><span>É possível segurar uma imagem com o botão esquerdo e, sem soltá-lo, usar o botão direito para navegar pela prévia. Os dois comportamentos funcionam ao mesmo tempo.</span></div>
             <div><strong>Roda do mouse</strong><span>Use a roda para rolar a página, a prévia ou a lista de cores conforme a área sobre a qual o cursor estiver. A rolagem é suavizada e acelerada.</span></div>
+            <div><strong>Zoom na prévia</strong><span>Segure <kbd>Shift</kbd> e use a roda dentro da área da prévia para aproximar ou afastar a composição. O zoom não altera o restante da página.</span></div>
             <div><strong>Hover e brilho</strong><span>Passar o mouse sobre uma imagem mostra a borda de seleção. Ao clicar, um brilho rápido confirma a seleção sem sair dos limites da imagem.</span></div>
           </div>
         </article>
@@ -431,6 +446,41 @@
         </article>
       </div>
       <div class="about-dialog-footer">Dica: os ajustes de cor, borda, remoção e reescala afetam somente as imagens selecionadas. O padding continua sendo sempre geral.</div>
+    </section>
+  </div>
+
+  <div class="settings-overlay" id="settings-overlay" hidden>
+    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-dialog-header">
+        <div>
+          <div class="eyebrow"><span></span> ajustes</div>
+          <h2 id="settings-title">Configurações</h2>
+          <p>Personalize o desempenho da prévia sem reduzir a qualidade do arquivo final.</p>
+        </div>
+        <button class="about-close" id="settings-close" type="button" aria-label="Fechar configurações">×</button>
+      </div>
+      <div class="settings-options">
+        <label class="settings-option settings-toggle-option">
+          <span>
+            <strong>Estrelas no scroll</strong>
+            <small>Mostra ou esconde as estrelas que aparecem quando a página é rolada.</small>
+          </span>
+          <input id="scroll-stars-toggle" type="checkbox" checked />
+          <span class="settings-switch" aria-hidden="true"></span>
+        </label>
+        <label class="settings-option" for="preview-quality-select">
+          <span>
+            <strong>Resolução da prévia</strong>
+            <small>Uma resolução menor deixa a prévia mais leve. Exportar e copiar continuam usando a resolução original.</small>
+          </span>
+          <select id="preview-quality-select">
+            <option value="1">Original · 100%</option>
+            <option value="0.75">Alta · 75%</option>
+            <option value="0.5">Média · 50%</option>
+            <option value="0.25">Leve · 25%</option>
+          </select>
+        </label>
+      </div>
     </section>
   </div>
   <script src="javascript.js"></script>
