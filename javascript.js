@@ -188,6 +188,8 @@ function applyBrowserLanguage() {
   setLanguageText("#highlight-toggle", "✦ Highlight");
   setLanguageText("#vertical-toggle", "↕ Vertical");
   setLanguageText("#copy-label", "Copy");
+  copyButton?.setAttribute("aria-label", "Copy selected images");
+  copyButton?.setAttribute("title", "Copy selected images");
   setLanguageText("#export-button > span:first-child", "Export");
   setLanguageText("#image-count", "0 images");
   const sortLabel = document.querySelector(".sort-label");
@@ -268,7 +270,7 @@ function translateManualToEnglish() {
   setCard(9, "spacing", "Space and padding", "Select an image, enter the space to the next one and click <strong>Apply space</strong>. <strong>Global padding</strong> adds margin around the composition. <strong>Select all</strong> applies the same space to every gap.");
   setCard(11, "preview", "Quick interactions", null);
   const rowSets = {
-    7: [["+ Add more", "Adds more images without removing the current ones."], ["Highlight", "Marks selected images with the selection color when copied or exported."], ["Vertical", "Switches between a horizontal row and vertically stacked images."], ["Copy", "Copies the whole composition. With an image selected, Ctrl + C copies only that image."], ["Export", "Saves the final composition as PNG and lets you choose the name and location."], ["☾ / ☀", "Switches between dark and light themes."], ["?", "Opens this manual."], ["⚙", "Opens settings for scroll stars and preview resolution."]],
+    7: [["+ Add more", "Adds more images without removing the current ones."], ["Highlight", "Marks selected images with the selection color when copied or exported."], ["Vertical", "Switches between a horizontal row and vertically stacked images."], ["Copy", "Copies only selected images, preserving their spacing, padding, background, borders and radii."], ["Export", "Saves the final composition as PNG and lets you choose the name and location."], ["☾ / ☀", "Switches between dark and light themes."], ["?", "Opens this manual."], ["⚙", "Opens settings for scroll stars and preview resolution."]],
     10: [["Empty color / Border color", "Chooses which area is edited. HEX, RGB, the color surface and sliders change the active color."], ["Transparent", "Removes the active color and makes the empty area or border transparent. Click again to return to the chosen color."], ["Erase borders", "Removes colors connected to the borders of selected images."], ["Erase colors", "Activates the eyedropper. Click a color in the preview to remove it from selected images. The card shows its swatch, HEX and color name."], ["Reset", "Removes erased colors from selected images. The list supports Ctrl or Shift selection and Delete."], ["Rescale", "Crops transparent space created by removing colors or borders from selected images."], ["Image borders", "Sets thickness, general radius and the four individual corner radii."]],
     11: [["Select", "Click an image quickly to select it. Click a selected image again to remove its selection."], ["Ctrl and Shift", "Hold Ctrl to add or remove individual images. Hold Shift to select the range between the current selection and the clicked image."], ["Select all", "Use the Select all button or Ctrl + A. Press it again to clear the selection."], ["Reorder in preview", "Hold the left button on an image, move it to another position and release to confirm. The rearrangement animation appears after the move."], ["Reorder in list", "In the image list below the preview, hold an item or its icon and drag it to the desired position."], ["Navigate preview", "Hold the right button and move the mouse to pan the preview. Inertia continues the movement briefly after release."], ["Both buttons", "You can hold an image with the left button and, without releasing it, use the right button to navigate the preview."], ["Mouse wheel", "Use the wheel to scroll the page, preview or color list depending on where the pointer is. Scrolling is smooth and accelerated."], ["Preview zoom", "Hold Shift and use the wheel inside the preview to zoom in or out. The zoom only affects the preview area."], ["Hover and glow", "Hovering an image shows its selection border. Clicking it shows a quick glow contained within the image."]],
     12: [["Ctrl + A", "Selects every image. Press it again to clear the selection."], ["Ctrl + C", "Copies selected images individually to the browser clipboard."], ["Ctrl + V", "Adds pasted images after the last selected image."], ["Delete", "Deletes selected images or, when the color list is focused, selected colors."], ["Ctrl + Z", "Undoes the last change. Ctrl + Shift + Z redoes it."], ["Enter", "Confirms numeric values for space, padding, borders, RGB, HEX and sliders."], ["Esc", "Closes the manual when it is open."], ["Drag files", "Drop images onto the page to add them without opening the file picker."]]
@@ -2009,6 +2011,7 @@ function updateSpacingControls() {
   rescaleButton.disabled = !hasSelection || !hasEraseSettings;
   eraseResetButton.disabled = !hasSelection || (!hasEraseSettings && !eraseMode);
   deleteImageButton.disabled = !hasImages || !hasSelection;
+  copyButton.disabled = !hasSelection;
   selectAllGapsButton.disabled = !hasImages;
   applySpacingButton.disabled = !hasGaps || (selectedImageIndex === null && !allGapsSelected) || selectedImageIndex >= selectedImages.length - 1;
   applyPaddingButton.disabled = !hasImages;
@@ -2563,33 +2566,72 @@ async function copySelectedImages(entries) {
   }
 }
 
-function renderOriginalComposition() {
+function getCompositionLayout(sourceRects) {
+  const gaps = sourceRects.slice(0, -1).map((rect) => gapSizes[rect.index] || 0);
+  const maxHeight = Math.max(...sourceRects.map((rect) => rect.image.height));
+  const maxWidth = Math.max(...sourceRects.map((rect) => rect.image.width));
+  const totalGap = gaps.reduce((sum, gap) => sum + gap, 0);
+  const width = isVertical ? maxWidth + paddingSize * 2 : sourceRects.reduce((sum, rect) => sum + rect.image.width, 0) + totalGap + paddingSize * 2;
+  const height = isVertical ? sourceRects.reduce((sum, rect) => sum + rect.image.height, 0) + totalGap + paddingSize * 2 : maxHeight + paddingSize * 2;
+  const rects = [];
+  if (isVertical) {
+    let top = paddingSize;
+    sourceRects.forEach((sourceRect, index) => {
+      const image = sourceRect.image;
+      const offset = selectedHorizontalAlignment === "left"
+        ? 0
+        : selectedHorizontalAlignment === "right"
+          ? maxWidth - image.width
+          : Math.round((maxWidth - image.width) / 2);
+      const left = Math.round(paddingSize + offset);
+      rects.push({ ...sourceRect, left, top, right: left + image.width, bottom: top + image.height });
+      top += image.height + (gaps[index] || 0);
+    });
+  } else {
+    let left = paddingSize;
+    sourceRects.forEach((sourceRect, index) => {
+      const image = sourceRect.image;
+      const offset = selectedAlignment === "top" ? 0 : selectedAlignment === "bottom" ? maxHeight - image.height : Math.round((maxHeight - image.height) / 2);
+      const top = Math.round(paddingSize + offset);
+      rects.push({ ...sourceRect, left, top, right: left + image.width, bottom: top + image.height });
+      left += image.width + (gaps[index] || 0);
+    });
+  }
+  return { rects, width, height };
+}
+
+function renderOriginalComposition(sourceRects = imageRects) {
+  if (!sourceRects.length) return null;
+  const layout = getCompositionLayout(sourceRects);
   const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = Math.max(1, compositionWidth);
-  exportCanvas.height = Math.max(1, compositionHeight);
+  exportCanvas.width = Math.max(1, layout.width);
+  exportCanvas.height = Math.max(1, layout.height);
   const previousContext = context;
   context = exportCanvas.getContext("2d");
-  context.clearRect(0, 0, compositionWidth, compositionHeight);
+  context.clearRect(0, 0, layout.width, layout.height);
   if (selectedColor && colorOpacity > 0) {
     context.fillStyle = colorWithOpacity(selectedColor, colorOpacity);
-    context.fillRect(0, 0, compositionWidth, compositionHeight);
+    context.fillRect(0, 0, layout.width, layout.height);
   }
-  imageRects.forEach((rect) => {
+  layout.rects.forEach((rect) => {
     drawRenderableImage(getRenderableImage(rect.image), rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, rect.borderSettings);
   });
-  if (highlightEnabled) drawHighlightBorders(imageRects.map((rect) => ({ ...rect, opacity: 1 })));
+  if (highlightEnabled) drawHighlightBorders(layout.rects.map((rect) => ({ ...rect, opacity: 1 })));
   context = previousContext;
   return exportCanvas;
 }
 
 async function copyComposition() {
-  if (!selectedImages.length) return;
+  const selectedEntries = getSelectedImageEntries();
+  if (!selectedEntries.length) return;
   if (!navigator.clipboard?.write || !window.ClipboardItem) {
     showCopyFeedback("Indisponível");
     return;
   }
   stopCurrentAnimation();
-  const exportCanvas = renderOriginalComposition();
+  const selectedImagesSet = new Set(selectedEntries.map(({ image }) => image));
+  const selectedRects = imageRects.filter((rect) => selectedImagesSet.has(rect.image));
+  const exportCanvas = renderOriginalComposition(selectedRects);
   const blob = await new Promise((resolve) => exportCanvas.toBlob(resolve, "image/png"));
   if (!blob) return;
   try {
