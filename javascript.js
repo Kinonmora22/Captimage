@@ -1285,10 +1285,11 @@ function handleWheelScroll(event) {
   const { x: deltaX, y: deltaY } = getWheelDelta(event);
   if (!deltaX && !deltaY) return;
   const elementTarget = event.target instanceof Element ? event.target : null;
+  const aboutTarget = elementTarget?.closest(".about-dialog");
   const canvasTarget = elementTarget?.closest(".canvas-scroll");
   const erasedColorsTarget = elementTarget?.closest(".erased-colors-list");
   const pageTarget = getPageScrollTarget();
-  const preferredTarget = erasedColorsTarget || canvasTarget || pageTarget;
+  const preferredTarget = aboutTarget || erasedColorsTarget || canvasTarget || pageTarget;
   const target = canScrollTarget(preferredTarget, deltaX, deltaY)
     ? preferredTarget
     : (preferredTarget === canvasScroll || preferredTarget === erasedColorsList ? pageTarget : preferredTarget);

@@ -396,6 +396,35 @@ body.modal-open {
   font-weight: 700;
 }
 
+.manual-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.manual-list > div {
+  display: grid;
+  grid-template-columns: minmax(130px, .7fr) minmax(0, 1.5fr);
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.manual-list > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.manual-list strong {
+  font-size: 10px;
+}
+
+.manual-list span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
 .shortcut-list {
   display: grid;
   gap: 6px;
@@ -2586,6 +2615,11 @@ body.dark-theme .file-item.is-selected {
 
   .about-card-wide {
     grid-column: auto;
+  }
+
+  .manual-list > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .hero {
