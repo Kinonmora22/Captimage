@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,9 +9,12 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="css.css" />
 </head>
+
 <body>
   <div class="history-toast-stack" id="history-toast-stack" aria-live="polite" aria-atomic="false"></div>
   <main class="app-shell">
@@ -21,7 +25,8 @@
       </a>
       <div class="topbar-tools">
         <span class="topbar-note">composição de imagens</span>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false" aria-label="Ativar modo escuro">
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false"
+          aria-label="Ativar modo escuro">
           <span class="theme-toggle-icon" aria-hidden="true">☾</span>
           <span class="theme-toggle-label">escuro</span>
         </button>
@@ -31,11 +36,15 @@
     <section class="hero" aria-labelledby="page-title">
       <div class="eyebrow"><span></span> ferramenta local · seus arquivos não saem do navegador</div>
       <h1 id="page-title">Junte imagens.<br /><em>Do seu jeito.</em></h1>
-      <p class="intro">Envie várias imagens e nós organizamos tudo da maior para a menor, com alinhamento central e espaço transparente.</p>
+      <p class="intro">Envie várias imagens e nós organizamos tudo da maior para a menor, com alinhamento central e
+        espaço transparente.</p>
 
       <label class="upload-card" for="image-input" id="upload-card">
         <span class="upload-icon" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none"><path d="M16 22V5m0 0-6 6m6-6 6 6M7 19v6.5A1.5 1.5 0 0 0 8.5 27h15a1.5 1.5 0 0 0 1.5-1.5V19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M16 22V5m0 0-6 6m6-6 6 6M7 19v6.5A1.5 1.5 0 0 0 8.5 27h15a1.5 1.5 0 0 0 1.5-1.5V19"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </span>
         <span class="upload-copy">
           <strong>Enviar imagens</strong>
@@ -54,16 +63,36 @@
         </div>
         <div class="demo-window">
           <div class="demo-track">
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80" alt="Carro esportivo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80" alt="Carro em uma estrada" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80" alt="Carro clássico" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80" alt="Pessoa sorrindo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80" alt="Carro esportivo" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80" alt="Carro em uma estrada" /></figure>
-            <figure class="demo-image"><img src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80" alt="Carro clássico" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80"
+                alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80"
+                alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80"
+                alt="Carro esportivo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80"
+                alt="Carro em uma estrada" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80"
+                alt="Carro clássico" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=720&q=80"
+                alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=720&q=80"
+                alt="Pessoa sorrindo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=960&q=80"
+                alt="Carro esportivo" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=960&q=80"
+                alt="Carro em uma estrada" /></figure>
+            <figure class="demo-image"><img
+                src="https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=960&q=80"
+                alt="Carro clássico" /></figure>
           </div>
         </div>
       </section>
@@ -77,13 +106,21 @@
         </div>
         <div class="actions">
           <button class="button button-secondary" id="add-more" type="button">+ Adicionar mais</button>
-          <button class="button button-secondary" id="highlight-toggle" type="button" aria-pressed="false" disabled>✦ Highlight</button>
-          <button class="button button-secondary" id="vertical-toggle" type="button" aria-pressed="false">↕ Vertical</button>
-          <button class="button button-secondary copy-button" id="copy-button" type="button" aria-label="Copiar imagem atual" title="Copiar imagem atual" disabled>
+          <button class="button button-secondary" id="highlight-toggle" type="button" aria-pressed="false" disabled>✦
+            Highlight</button>
+          <button class="button button-secondary" id="vertical-toggle" type="button" aria-pressed="false">↕
+            Vertical</button>
+          <button class="button button-secondary copy-button" id="copy-button" type="button"
+            aria-label="Copiar imagem atual" title="Copiar imagem atual" disabled>
             <span id="copy-label">Copiar</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6.8A1.8 1.8 0 0 0 14.2 5H6.8A1.8 1.8 0 0 0 5 6.8v7.4A1.8 1.8 0 0 0 6.8 16H8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="8" y="8" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.7" />
+              <path d="M16 8V6.8A1.8 1.8 0 0 0 14.2 5H6.8A1.8 1.8 0 0 0 5 6.8v7.4A1.8 1.8 0 0 0 6.8 16H8" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
           </button>
-          <button class="button button-primary" id="export-button" type="button"><span>Exportar</span><span aria-hidden="true">↓</span></button>
+          <button class="button button-primary" id="export-button" type="button"><span>Exportar</span><span
+              aria-hidden="true">↓</span></button>
         </div>
       </div>
 
@@ -97,14 +134,17 @@
 
       <div class="controls-panel">
         <div class="control-block color-block">
-          <div class="control-title"><span id="color-context-label">Cor do vazio</span> <span id="color-value">transparente</span></div>
+          <div class="control-title"><span id="color-context-label">Cor do vazio</span> <span
+              id="color-value">transparente</span></div>
           <div class="color-editor">
             <div class="color-editor-left">
               <div class="color-targets" role="tablist" aria-label="Escolher o tipo de cor">
-                <button class="color-target-button is-active" id="empty-color-target" type="button" role="tab" aria-selected="true" data-color-target="empty">
+                <button class="color-target-button is-active" id="empty-color-target" type="button" role="tab"
+                  aria-selected="true" data-color-target="empty">
                   <span>Cor do vazio</span><strong id="empty-color-summary">transparente</strong>
                 </button>
-                <button class="color-target-button" id="border-color-target" type="button" role="tab" aria-selected="false" data-color-target="border">
+                <button class="color-target-button" id="border-color-target" type="button" role="tab"
+                  aria-selected="false" data-color-target="border">
                   <span>Cor da borda</span><strong id="border-color-summary">#FFFFFF</strong>
                 </button>
               </div>
@@ -115,27 +155,41 @@
                 <label>B<input id="blue-input" type="number" min="0" max="255" value="0" /></label>
               </div>
               <span class="erase-status" id="erase-status">Cor apagada: ()</span>
-              <div class="transparency-control">
-                <div class="transparency-label"><span>transparência</span><strong id="transparency-value">—</strong></div>
-                <input id="transparency-slider" type="range" min="0" max="100" value="0" aria-label="Transparência da cor selecionada" disabled />
-              </div>
-              <button class="erase-color-button" id="erase-border-button" type="button" aria-pressed="false" disabled>Apagar bordas</button>
-              <button class="erase-color-button" id="erase-color-button" type="button" disabled>Apagar cores</button>
-              <button class="erase-color-button rescale-button" id="rescale-button" type="button" disabled>Reescalar</button>
+              <div class="erased-colors-list" id="erased-colors-list" role="listbox" aria-label="Cores apagadas" aria-multiselectable="true" hidden></div>
+              <button class="erase-reset-button" id="erase-reset-button" type="button" disabled>Reset</button>
             </div>
             <div class="color-editor-right">
               <div class="color-topline">
                 <label class="hex-color" title="Editar código HEX">
                   <span>HEX</span>
-                  <input id="hex-input" type="text" inputmode="text" maxlength="7" placeholder="#B8EC86" spellcheck="false" aria-label="Código HEX da cor" />
+                  <input id="hex-input" type="text" inputmode="text" maxlength="7" placeholder="#B8EC86"
+                    spellcheck="false" aria-label="Código HEX da cor" />
                 </label>
-                <button class="transparent-button is-active" id="transparent-toggle" type="button" aria-pressed="true">transparente</button>
+                <button class="transparent-button is-active" id="transparent-toggle" type="button"
+                  aria-pressed="true">transparente</button>
               </div>
-              <div class="color-surface is-transparent" id="color-surface" role="button" tabindex="0" aria-label="Escolher saturação e luminosidade da cor">
+              <div class="color-surface is-transparent" id="color-surface" role="button" tabindex="0"
+                aria-label="Escolher saturação e luminosidade da cor">
                 <span class="color-surface-cursor" id="color-surface-cursor"></span>
               </div>
-              <input class="hue-slider" id="hue-slider" type="range" min="0" max="360" value="100" aria-label="Escolher matiz da cor" />
             </div>
+          </div>
+          <div class="color-sliders-row" aria-label="Controles de cor">
+            <div class="transparency-control">
+              <div class="transparency-label"><span>transparência</span><strong id="transparency-value">—</strong></div>
+              <input id="transparency-slider" type="range" min="0" max="100" value="0"
+                aria-label="Transparência da cor selecionada" disabled />
+            </div>
+            <div class="hue-control">
+              <div class="slider-label">cor</div>
+              <input class="hue-slider" id="hue-slider" type="range" min="0" max="360" value="100"
+                aria-label="Escolher matiz da cor" />
+            </div>
+          </div>
+          <div class="erase-actions" aria-label="Ações de remoção e escala">
+            <button class="erase-color-button" id="erase-border-button" type="button" aria-pressed="false" disabled>Apagar bordas</button>
+            <button class="erase-color-button" id="erase-color-button" type="button" disabled>Apagar cores</button>
+            <button class="erase-color-button rescale-button" id="rescale-button" type="button" disabled>Reescalar</button>
           </div>
         </div>
 
@@ -143,26 +197,46 @@
           <div class="control-title">Ordem e alinhamento</div>
           <div class="layout-subtitle">ordem das imagens</div>
           <div class="layout-options" role="radiogroup" aria-label="Ordem das imagens">
-            <button class="layout-button is-active" type="button" data-order="desc" role="radio" aria-checked="true"><span>↗</span> maior → menor</button>
-            <button class="layout-button" type="button" data-order="asc" role="radio" aria-checked="false"><span>↘</span> menor → maior</button>
+            <button class="layout-button is-active" type="button" data-order="desc" role="radio"
+              aria-checked="true"><span>↗</span> maior → menor</button>
+            <button class="layout-button" type="button" data-order="asc" role="radio"
+              aria-checked="false"><span>↘</span> menor → maior</button>
           </div>
           <div class="layout-subtitle alignment-subtitle">alinhamento vertical</div>
           <div class="layout-options alignment-options" role="radiogroup" aria-label="Alinhamento vertical">
-            <button class="layout-button align-button is-active" type="button" data-align="center" role="radio" aria-checked="true"><span>↕</span> centralizado</button>
-            <button class="layout-button align-button" type="button" data-align="top" role="radio" aria-checked="false"><span>↑</span> para cima</button>
-            <button class="layout-button align-button" type="button" data-align="bottom" role="radio" aria-checked="false"><span>↓</span> para baixo</button>
+            <button class="layout-button align-button" type="button" data-align="top" role="radio"
+              aria-checked="false"><span>↑</span> para cima</button>
+            <button class="layout-button align-button is-active" type="button" data-align="center" role="radio"
+              aria-checked="true"><span>↕</span> centralizado</button>
+            <button class="layout-button align-button" type="button" data-align="bottom" role="radio"
+              aria-checked="false"><span>↓</span> para baixo</button>
+          </div>
+          <div class="layout-subtitle horizontal-alignment-subtitle">alinhamento horizontal</div>
+          <div class="layout-options alignment-options" role="radiogroup" aria-label="Alinhamento horizontal">
+            <button class="layout-button horizontal-align-button" type="button" data-horizontal-align="left" role="radio"
+              aria-checked="false" disabled><span>←</span> esquerda</button>
+            <button class="layout-button horizontal-align-button is-active" type="button" data-horizontal-align="center" role="radio"
+              aria-checked="true" disabled><span>↔</span> centralizado</button>
+            <button class="layout-button horizontal-align-button" type="button" data-horizontal-align="right" role="radio"
+              aria-checked="false" disabled><span>→</span> direita</button>
           </div>
           <div class="layout-subtitle border-subtitle">borda das imagens</div>
           <div class="border-fields">
             <div class="border-row border-row-wide">
-              <label class="border-field"><span>espessura de borda</span><input id="border-thickness-input" type="number" min="0" max="200" step="1" value="0" /></label>
-              <label class="border-field"><span>raio de borda (geral)</span><input id="border-radius-general-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>espessura de borda</span><input id="border-thickness-input"
+                  type="number" min="0" max="200" step="1" value="0" /></label>
+              <label class="border-field"><span>raio de borda (geral)</span><input id="border-radius-general-input"
+                  type="number" min="0" max="1000" step="1" value="0" /></label>
             </div>
             <div class="border-row border-row-corners">
-              <label class="border-field"><span>raio superior esquerdo</span><input id="border-radius-top-left-input" type="number" min="0" max="1000" step="1" value="0" /></label>
-              <label class="border-field"><span>raio inferior esquerdo</span><input id="border-radius-bottom-left-input" type="number" min="0" max="1000" step="1" value="0" /></label>
-              <label class="border-field"><span>raio inferior direito</span><input id="border-radius-bottom-right-input" type="number" min="0" max="1000" step="1" value="0" /></label>
-              <label class="border-field"><span>raio superior direito</span><input id="border-radius-top-right-input" type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio superior esquerdo</span><input id="border-radius-top-left-input"
+                  type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio inferior esquerdo</span><input id="border-radius-bottom-left-input"
+                  type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio inferior direito</span><input id="border-radius-bottom-right-input"
+                  type="number" min="0" max="1000" step="1" value="0" /></label>
+              <label class="border-field"><span>raio superior direito</span><input id="border-radius-top-right-input"
+                  type="number" min="0" max="1000" step="1" value="0" /></label>
             </div>
           </div>
         </div>
@@ -188,22 +262,31 @@
           </div>
           <div class="spacing-controls">
             <div class="spacing-control-row">
-              <label class="spacing-input-label" for="spacing-input">espaço <strong id="selected-image-label">—</strong></label>
+              <label class="spacing-input-label" for="spacing-input">espaço <strong
+                  id="selected-image-label">—</strong></label>
               <input id="spacing-input" type="number" min="0" step="1" value="0" aria-label="Espaço em pixels" />
               <span class="px-suffix">px</span>
-              <button class="button button-secondary compact-button" id="apply-spacing" type="button">Aplicar espaço</button>
+              <button class="button button-secondary compact-button" id="apply-spacing" type="button">Aplicar
+                espaço</button>
             </div>
             <div class="spacing-control-row">
               <label class="spacing-input-label" for="padding-input">padding geral</label>
               <input id="padding-input" type="number" min="0" step="1" value="0" aria-label="Padding geral em pixels" />
               <span class="px-suffix">px</span>
-              <button class="button button-secondary compact-button" id="apply-padding" type="button">Aplicar padding</button>
+              <button class="button button-secondary compact-button" id="apply-padding" type="button">Aplicar
+                padding</button>
             </div>
-            <button class="button button-secondary compact-button" id="select-all-gaps" type="button">Selecionar todos</button>
+            <button class="button button-secondary compact-button" id="select-all-gaps" type="button">Selecionar
+              todos</button>
           </div>
         </div>
-        <button class="delete-image-button" id="delete-image-button" type="button" aria-label="Apagar imagem selecionada" title="Apagar imagem selecionada" disabled>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7m-9 0 .8 13.2c.03.45.4.8.85.8h8.7c.45 0 .82-.35.85-.8L18 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <button class="delete-image-button" id="delete-image-button" type="button"
+          aria-label="Apagar imagem selecionada" title="Apagar imagem selecionada" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M4 7h16m-10 4v6m4-6v6M9 7V4.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7m-9 0 .8 13.2c.03.45.4.8.85.8h8.7c.45 0 .82-.35.85-.8L18 7"
+              fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </button>
       </div>
 
@@ -214,4 +297,5 @@
   </main>
   <script src="javascript.js"></script>
 </body>
+
 </html>

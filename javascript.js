@@ -38,8 +38,11 @@ const eraseColorButton = document.getElementById("erase-color-button");
 const eraseBorderButton = document.getElementById("erase-border-button");
 const rescaleButton = document.getElementById("rescale-button");
 const eraseStatus = document.getElementById("erase-status");
+const eraseResetButton = document.getElementById("erase-reset-button");
+const erasedColorsList = document.getElementById("erased-colors-list");
 const orderButtons = [...document.querySelectorAll("[data-order]")];
 const alignButtons = [...document.querySelectorAll("[data-align]")];
+const horizontalAlignButtons = [...document.querySelectorAll("[data-horizontal-align]")];
 const spacingStatus = document.getElementById("spacing-status");
 const selectedImageLabel = document.getElementById("selected-image-label");
 const spacingInput = document.getElementById("spacing-input");
@@ -68,6 +71,7 @@ let selectedSaturation = 0.7;
 let selectedValue = 0.9;
 let selectedOrder = "desc";
 let selectedAlignment = "center";
+let selectedHorizontalAlignment = "center";
 let isVertical = false;
 let gapSizes = [];
 let paddingSize = 0;
@@ -81,6 +85,9 @@ let customOrder = false;
 let manualOrder = [];
 let draggedFileIndex = null;
 let eraseColor = null;
+let erasedColors = [];
+let selectedErasedColorIndexes = new Set();
+let erasedColorAnchorIndex = null;
 let eraseMode = false;
 let eraseBorders = false;
 let history = [];
@@ -102,9 +109,11 @@ let reorderHoverIndex = null;
 let hoveredImageIndex = null;
 let selectionPulseTimer = null;
 let highlightEnabled = false;
+let panelMotionTimer = null;
 
 const orderNames = { desc: "maior → menor", asc: "menor → maior", custom: "ordem personalizada" };
 const alignmentNames = { center: "centralizado", top: "para cima", bottom: "para baixo" };
+const horizontalAlignmentNames = { left: "esquerda", center: "centralizado", right: "direita" };
 const selectionBorderThickness = 3;
 
 imageInput.addEventListener("change", (event) => {
@@ -128,6 +137,11 @@ document.addEventListener("pointerup", handleGlobalPointerRelease);
 document.addEventListener("pointercancel", handleGlobalPointerRelease);
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Delete" && !isTypingTarget(event.target) && selectedErasedColorIndexes.size) {
+    event.preventDefault();
+    deleteSelectedErasedColors();
+    return;
+  }
   if (event.key === "Delete" && !isTypingTarget(event.target) && !deleteImageButton.disabled) {
     event.preventDefault();
     deleteImageButton.click();
@@ -155,6 +169,7 @@ verticalToggle.addEventListener("click", () => {
   verticalToggle.classList.toggle("is-active", isVertical);
   verticalToggle.setAttribute("aria-pressed", String(isVertical));
   alignButtons.forEach((button) => { button.disabled = isVertical; });
+  horizontalAlignButtons.forEach((button) => { button.disabled = !isVertical; });
   updateLayoutLabel();
   commitHistory();
   renderComposition();
@@ -179,6 +194,25 @@ colorTargetButtons.forEach((button) => {
 hexInput.addEventListener("change", applyHexInput);
 hexInput.addEventListener("blur", applyHexInput);
 colorSurface.addEventListener("click", chooseSurfaceColor);
+let isColorSurfaceDragging = false;
+colorSurface.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  isColorSurfaceDragging = true;
+  colorSurface.setPointerCapture?.(event.pointerId);
+  chooseSurfaceColor(event, false);
+  event.preventDefault();
+});
+colorSurface.addEventListener("pointermove", (event) => {
+  if (!isColorSurfaceDragging) return;
+  chooseSurfaceColor(event, false);
+  event.preventDefault();
+});
+colorSurface.addEventListener("pointerup", (event) => {
+  isColorSurfaceDragging = false;
+  if (colorSurface.hasPointerCapture?.(event.pointerId)) colorSurface.releasePointerCapture(event.pointerId);
+  commitHistory();
+});
+colorSurface.addEventListener("pointercancel", () => { isColorSurfaceDragging = false; });
 colorSurface.addEventListener("keydown", (event) => {
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
@@ -204,6 +238,10 @@ hueSlider.addEventListener("change", () => commitHistory());
   input.addEventListener("blur", applyRgbInputs);
 });
 transparentToggle.addEventListener("click", () => {
+  if (!getActiveColor()) {
+    setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue));
+    return;
+  }
   setActiveColor(null, false);
   updateColorControls();
   commitHistory();
@@ -288,11 +326,26 @@ alignButtons.forEach((button) => {
     renderComposition();
   });
 });
+horizontalAlignButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!isVertical) return;
+    selectedHorizontalAlignment = button.dataset.horizontalAlign;
+    horizontalAlignButtons.forEach((item) => {
+      const isActive = item === button;
+      item.classList.toggle("is-active", isActive);
+      item.setAttribute("aria-checked", String(isActive));
+    });
+    updateLayoutLabel();
+    commitHistory();
+    renderComposition();
+  });
+});
 applySpacingButton.addEventListener("click", applySpacing);
 applyPaddingButton.addEventListener("click", applyPadding);
 eraseColorButton.addEventListener("click", startColorErase);
 eraseBorderButton.addEventListener("click", toggleBorderErase);
 rescaleButton.addEventListener("click", rescaleImagesToVisibleBounds);
+eraseResetButton.addEventListener("click", resetErasedColors);
 selectAllGapsButton.addEventListener("click", () => {
   if (allGapsSelected) {
     allGapsSelected = false;
@@ -325,6 +378,30 @@ selectAllGapsButton.addEventListener("click", () => {
 
 uploadCard.addEventListener("drop", (event) => addImages(event.dataTransfer.files));
 
+function hasDraggedImageFiles(event) {
+  return [...(event.dataTransfer?.files || [])].some((file) => file.type.startsWith("image/"))
+    || [...(event.dataTransfer?.types || [])].includes("Files");
+}
+
+document.addEventListener("dragover", (event) => {
+  if (!hasDraggedImageFiles(event) || uploadCard.contains(event.target)) return;
+  event.preventDefault();
+  uploadCard.classList.add("is-dragging");
+});
+
+document.addEventListener("dragleave", (event) => {
+  if (event.relatedTarget === null) uploadCard.classList.remove("is-dragging");
+});
+
+document.addEventListener("drop", (event) => {
+  if (uploadCard.contains(event.target) || !hasDraggedImageFiles(event)) return;
+  const imageFiles = [...(event.dataTransfer?.files || [])].filter((file) => file.type.startsWith("image/"));
+  if (!imageFiles.length) return;
+  event.preventDefault();
+  uploadCard.classList.remove("is-dragging");
+  addImages(imageFiles);
+});
+
 function addImages(fileCollection) {
   const validFiles = [...fileCollection].filter((file) => file.type.startsWith("image/"));
   if (!validFiles.length) return;
@@ -338,6 +415,7 @@ function addImages(fileCollection) {
     ];
     commitHistory();
     renderComposition(true);
+    pulseWorkspacePanels();
   });
 }
 
@@ -358,6 +436,17 @@ function getOrderedImages() {
   if (customOrder) return manualOrder.filter((item) => selectedImages.includes(item));
   const descending = [...selectedImages].sort((a, b) => b.image.height - a.image.height);
   return selectedOrder === "asc" ? descending.reverse() : descending;
+}
+
+function pulseWorkspacePanels() {
+  const className = "image-added-flash";
+  document.body.classList.remove(className);
+  void workspace.offsetWidth;
+  document.body.classList.add(className);
+  window.clearTimeout(panelMotionTimer);
+  panelMotionTimer = window.setTimeout(() => {
+    document.body.classList.remove(className);
+  }, 900);
 }
 
 function renderComposition(shouldScroll = false) {
@@ -404,7 +493,12 @@ function renderComposition(shouldScroll = false) {
     orderedImages.forEach(({ image }, index) => {
       const renderableImage = getRenderableImage(image);
       renderableImages.set(image, renderableImage);
-      const xPosition = Math.round(paddingSize + (maxWidth - image.width) / 2);
+      const xOffset = selectedHorizontalAlignment === "left"
+        ? 0
+        : selectedHorizontalAlignment === "right"
+          ? maxWidth - image.width
+          : Math.round((maxWidth - image.width) / 2);
+      const xPosition = Math.round(paddingSize + xOffset);
       nextRects.push({ left: xPosition, top: yPosition, right: xPosition + image.width, bottom: yPosition + image.height, index: nextRects.length, image, borderSettings: cloneBorderSettings(getImageBorderSettings(image)) });
       yPosition += image.height + (gapSizes[index] || 0);
     });
@@ -519,7 +613,7 @@ function animateComposition(previousRects, nextRects, renderableImages, totalWid
     drawHighlightBorders(drawnRects);
   };
 
-  if (!previousRects.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (!previousRects.length) {
     drawFrame(1);
     return;
   }
@@ -548,7 +642,8 @@ function stopCurrentAnimation() {
 }
 
 function getRenderableImage(image) {
-  if (!eraseColor && !eraseBorders) return image;
+  const colorsToErase = erasedColors.length ? erasedColors : eraseColor ? [eraseColor] : [];
+  if (!colorsToErase.length && !eraseBorders) return image;
   const processedCanvas = document.createElement("canvas");
   processedCanvas.width = image.width;
   processedCanvas.height = image.height;
@@ -556,15 +651,16 @@ function getRenderableImage(image) {
   processedContext.drawImage(image, 0, 0);
   const pixels = processedContext.getImageData(0, 0, processedCanvas.width, processedCanvas.height);
   const data = pixels.data;
-  if (eraseColor) {
+  if (colorsToErase.length) {
     const tolerance = 0;
     for (let index = 0; index < data.length; index += 4) {
-      const colorDistance = Math.max(
-        Math.abs(data[index] - eraseColor.r),
-        Math.abs(data[index + 1] - eraseColor.g),
-        Math.abs(data[index + 2] - eraseColor.b)
-      );
-      if (data[index + 3] > 0 && colorDistance <= tolerance) data[index + 3] = 0;
+      if (data[index + 3] === 0) continue;
+      const matchesColor = colorsToErase.some((color) => Math.max(
+        Math.abs(data[index] - color.r),
+        Math.abs(data[index + 1] - color.g),
+        Math.abs(data[index + 2] - color.b)
+      ) <= tolerance);
+      if (matchesColor) data[index + 3] = 0;
     }
   }
   processedContext.putImageData(pixels, 0, 0);
@@ -662,7 +758,7 @@ function cropTransparentBounds(source) {
 }
 
 function rescaleImagesToVisibleBounds() {
-  if (!selectedImages.length || (!eraseColor && !eraseBorders)) return;
+  if (!selectedImages.length || (!erasedColors.length && !eraseColor && !eraseBorders)) return;
   const replacements = new Map();
   const nextImages = selectedImages.map((entry) => {
     const visibleImage = cropTransparentBounds(getRenderableImage(entry.image));
@@ -737,7 +833,9 @@ function clampCornerRadii(radii, width, height) {
 
 function updateLayoutLabel() {
   const orderLabel = customOrder ? orderNames.custom : orderNames[selectedOrder];
-  layoutLabel.textContent = isVertical ? `${orderLabel} · vertical` : `${orderLabel} · ${alignmentNames[selectedAlignment]}`;
+  layoutLabel.textContent = isVertical
+    ? `${orderLabel} · vertical · ${horizontalAlignmentNames[selectedHorizontalAlignment]}`
+    : `${orderLabel} · ${alignmentNames[selectedAlignment]}`;
 }
 
 function selectImageAt(event) {
@@ -749,16 +847,15 @@ function selectImageAt(event) {
   const y = (event.clientY - bounds.top) * scaleY;
   const target = imageRects.find((rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
   if (!target) {
-    if (eraseMode) eraseStatus.textContent = "Cor apagada: ()";
+    if (eraseMode) updateEraseStatus();
     return;
   }
   if (eraseMode) {
     const pixel = context.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-    eraseColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+    addErasedColor({ r: pixel[0], g: pixel[1], b: pixel[2] });
     eraseMode = false;
     eraseColorButton.classList.remove("is-active");
     canvasScroll.classList.remove("is-eyedropper");
-    eraseStatus.textContent = `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})`;
     commitHistory();
     renderComposition();
     return;
@@ -885,35 +982,40 @@ function getWheelDelta(event) {
   return { x: event.deltaX * multiplier, y: event.deltaY * multiplier };
 }
 
+function getPageScrollTarget() {
+  return document.scrollingElement || document.documentElement;
+}
+
+function isPageScrollTarget(target) {
+  return target === getPageScrollTarget();
+}
+
 function canScrollTarget(target, deltaX, deltaY) {
-  if (target === canvasScroll) {
-    return (Math.abs(deltaX) > 0 && canvasScroll.scrollWidth > canvasScroll.clientWidth) || (Math.abs(deltaY) > 0 && canvasScroll.scrollHeight > canvasScroll.clientHeight);
-  }
-  const page = document.scrollingElement || document.documentElement;
-  return (Math.abs(deltaX) > 0 && page.scrollWidth > page.clientWidth) || (Math.abs(deltaY) > 0 && page.scrollHeight > page.clientHeight);
+  if (!target) return false;
+  return (Math.abs(deltaX) > 0 && target.scrollWidth > target.clientWidth) || (Math.abs(deltaY) > 0 && target.scrollHeight > target.clientHeight);
 }
 
 function readScrollPosition(target) {
-  return target === canvasScroll ? { x: canvasScroll.scrollLeft, y: canvasScroll.scrollTop } : { x: window.scrollX, y: window.scrollY };
+  return isPageScrollTarget(target) ? { x: window.scrollX, y: window.scrollY } : { x: target.scrollLeft, y: target.scrollTop };
 }
 
 function applyScrollDelta(target, deltaX, deltaY) {
-  if (target === canvasScroll) {
-    canvasScroll.scrollLeft += deltaX;
-    canvasScroll.scrollTop += deltaY;
+  if (!isPageScrollTarget(target)) {
+    target.scrollLeft += deltaX;
+    target.scrollTop += deltaY;
     return;
   }
   window.scrollTo({ left: window.scrollX + deltaX, top: window.scrollY + deltaY, behavior: "instant" });
 }
 
 function getScrollLimits(target) {
-  if (target === canvasScroll) {
+  if (!isPageScrollTarget(target)) {
     return {
-      x: Math.max(0, canvasScroll.scrollWidth - canvasScroll.clientWidth),
-      y: Math.max(0, canvasScroll.scrollHeight - canvasScroll.clientHeight)
+      x: Math.max(0, target.scrollWidth - target.clientWidth),
+      y: Math.max(0, target.scrollHeight - target.clientHeight)
     };
   }
-  const page = document.scrollingElement || document.documentElement;
+  const page = getPageScrollTarget();
   return {
     x: Math.max(0, page.scrollWidth - page.clientWidth),
     y: Math.max(0, page.scrollHeight - page.clientHeight)
@@ -1024,9 +1126,14 @@ function handleWheelScroll(event) {
   if (event.ctrlKey) return;
   const { x: deltaX, y: deltaY } = getWheelDelta(event);
   if (!deltaX && !deltaY) return;
-  const canvasTarget = event.target instanceof Element ? event.target.closest(".canvas-scroll") : null;
-  const preferredTarget = canvasTarget || (document.scrollingElement || document.documentElement);
-  const target = canScrollTarget(preferredTarget, deltaX, deltaY) ? preferredTarget : (preferredTarget === canvasScroll ? (document.scrollingElement || document.documentElement) : preferredTarget);
+  const elementTarget = event.target instanceof Element ? event.target : null;
+  const canvasTarget = elementTarget?.closest(".canvas-scroll");
+  const erasedColorsTarget = elementTarget?.closest(".erased-colors-list");
+  const pageTarget = getPageScrollTarget();
+  const preferredTarget = erasedColorsTarget || canvasTarget || pageTarget;
+  const target = canScrollTarget(preferredTarget, deltaX, deltaY)
+    ? preferredTarget
+    : (preferredTarget === canvasScroll || preferredTarget === erasedColorsList ? pageTarget : preferredTarget);
   if (!canScrollTarget(target, deltaX, deltaY)) return;
   event.preventDefault();
   startWheelInertia(target, deltaX, deltaY);
@@ -1152,7 +1259,7 @@ function startColorErase() {
   eraseMode = !eraseMode;
   eraseColorButton.classList.toggle("is-active", eraseMode);
   canvasScroll.classList.toggle("is-eyedropper", eraseMode);
-  eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
+  updateEraseStatus();
 }
 
 function toggleBorderErase() {
@@ -1160,6 +1267,91 @@ function toggleBorderErase() {
   eraseBorders = !eraseBorders;
   eraseBorderButton.classList.toggle("is-active", eraseBorders);
   eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
+  commitHistory();
+  renderComposition();
+}
+
+function resetErasedColors() {
+  if (!erasedColors.length && !eraseColor && !eraseBorders && !eraseMode) return;
+  eraseColor = null;
+  erasedColors = [];
+  selectedErasedColorIndexes.clear();
+  erasedColorAnchorIndex = null;
+  eraseBorders = false;
+  eraseMode = false;
+  eraseColorButton.classList.remove("is-active");
+  eraseBorderButton.classList.remove("is-active");
+  eraseBorderButton.setAttribute("aria-pressed", "false");
+  canvasScroll.classList.remove("is-eyedropper");
+  updateEraseStatus();
+  commitHistory();
+  renderComposition();
+}
+
+function updateEraseStatus() {
+  if (!erasedColors.length) {
+    eraseStatus.textContent = "Cor apagada: ()";
+    return;
+  }
+  if (selectedErasedColorIndexes.size === 1) {
+    const index = [...selectedErasedColorIndexes][0];
+    eraseStatus.textContent = `Cor apagada: (${rgbToHex(erasedColors[index]).toUpperCase()})`;
+    return;
+  }
+  eraseStatus.textContent = `Cores apagadas: (${erasedColors.length})`;
+}
+
+function renderErasedColorsList() {
+  if (!erasedColorsList) return;
+  selectedErasedColorIndexes = new Set([...selectedErasedColorIndexes].filter((index) => index >= 0 && index < erasedColors.length));
+  erasedColorsList.hidden = false;
+  erasedColorsList.innerHTML = erasedColors.length
+    ? erasedColors.map((color, index) => {
+      const isSelected = selectedErasedColorIndexes.has(index);
+      return `<button class="erased-color-item${isSelected ? " is-selected" : ""}" type="button" role="option" aria-selected="${isSelected}" data-erased-color-index="${index}"><span class="erased-color-swatch" style="--erased-color:${rgbToHex(color)}"></span><span class="erased-color-value">${rgbToHex(color).toUpperCase()}</span><span class="erased-color-index">${String(index + 1).padStart(2, "0")}</span></button>`;
+    }).join("")
+    : `<div class="erased-colors-empty">Nenhuma cor apagada</div>`;
+  erasedColorsList.querySelectorAll(".erased-color-item").forEach((item) => {
+    item.addEventListener("click", (event) => selectErasedColor(Number(item.dataset.erasedColorIndex), event.ctrlKey || event.metaKey, event.shiftKey));
+  });
+  updateEraseStatus();
+}
+
+function selectErasedColor(index, additive = false, range = false) {
+  if (range && erasedColorAnchorIndex !== null) {
+    const start = Math.min(erasedColorAnchorIndex, index);
+    const end = Math.max(erasedColorAnchorIndex, index);
+    selectedErasedColorIndexes = new Set(Array.from({ length: end - start + 1 }, (_, offset) => start + offset));
+  } else if (additive) {
+    if (selectedErasedColorIndexes.has(index)) selectedErasedColorIndexes.delete(index);
+    else selectedErasedColorIndexes.add(index);
+  } else if (selectedErasedColorIndexes.size === 1 && selectedErasedColorIndexes.has(index)) {
+    selectedErasedColorIndexes.clear();
+  } else {
+    selectedErasedColorIndexes = new Set([index]);
+  }
+  if (!range) erasedColorAnchorIndex = index;
+  eraseColor = selectedErasedColorIndexes.size ? erasedColors[[...selectedErasedColorIndexes].at(-1)] : erasedColor;
+  renderErasedColorsList();
+}
+
+function addErasedColor(color) {
+  const existingIndex = erasedColors.findIndex((item) => item.r === color.r && item.g === color.g && item.b === color.b);
+  const index = existingIndex >= 0 ? existingIndex : erasedColors.push({ ...color }) - 1;
+  eraseColor = { ...erasedColors[index] };
+  selectedErasedColorIndexes = new Set([index]);
+  erasedColorAnchorIndex = index;
+  renderErasedColorsList();
+}
+
+function deleteSelectedErasedColors() {
+  if (!selectedErasedColorIndexes.size) return;
+  const removed = new Set(selectedErasedColorIndexes);
+  erasedColors = erasedColors.filter((_, index) => !removed.has(index));
+  eraseColor = erasedColors.length ? { ...erasedColors[erasedColors.length - 1] } : null;
+  selectedErasedColorIndexes.clear();
+  erasedColorAnchorIndex = null;
+  renderErasedColorsList();
   commitHistory();
   renderComposition();
 }
@@ -1201,7 +1393,8 @@ function updateSpacingControls() {
   eraseBorderButton.disabled = !hasImages;
   eraseBorderButton.classList.toggle("is-active", eraseBorders);
   eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
-  rescaleButton.disabled = !hasImages || (!eraseColor && !eraseBorders);
+  rescaleButton.disabled = !hasImages || (!erasedColors.length && !eraseColor && !eraseBorders);
+  eraseResetButton.disabled = !hasImages || (!erasedColors.length && !eraseColor && !eraseBorders && !eraseMode);
   const hasSelection = allGapsSelected || selectedImageIndexes.size > 0 || selectedImageIndex !== null;
   deleteImageButton.disabled = !hasImages || !hasSelection;
   selectAllGapsButton.disabled = !hasImages;
@@ -1239,6 +1432,7 @@ function updateSpacingControls() {
     const index = Number(item.dataset.imageIndex);
     item.classList.toggle("is-selected", allGapsSelected || selectedImageIndexes.has(index) || index === selectedImageIndex);
   });
+  renderErasedColorsList();
 }
 
 function applySpacing() {
@@ -1314,12 +1508,12 @@ function applyTheme() {
   themeToggle.querySelector(".theme-toggle-label").textContent = isDarkTheme ? "claro" : "escuro";
 }
 
-function chooseSurfaceColor(event) {
+function chooseSurfaceColor(event, recordHistory = true) {
   if (typeof event.clientX !== "number" || typeof event.clientY !== "number") return;
   const bounds = colorSurface.getBoundingClientRect();
   selectedSaturation = clamp((event.clientX - bounds.left) / bounds.width, 0, 1);
   selectedValue = clamp(1 - ((event.clientY - bounds.top) / bounds.height), 0, 1);
-  setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue));
+  setColor(hsvToHex(selectedHue, selectedSaturation, selectedValue), recordHistory);
 }
 
 function setColor(color, recordHistory = true) {
@@ -1696,6 +1890,7 @@ function captureState() {
     customOrder,
     manualOrder: [...manualOrder],
     selectedAlignment,
+    selectedHorizontalAlignment,
     isVertical,
     highlightEnabled,
     imageBorderSettings: selectedImages.map(({ image }) => ({ image, settings: cloneBorderSettings(getImageBorderSettings(image)) })),
@@ -1704,6 +1899,7 @@ function captureState() {
     borderThickness,
     borderRadii: { ...borderRadii },
     eraseColor: eraseColor ? { ...eraseColor } : null,
+    erasedColors: erasedColors.map((color) => ({ ...color })),
     eraseBorders
   };
 }
@@ -1716,7 +1912,9 @@ function statesMatch(first, second) {
   const firstOrder = first.manualOrder || first.selectedImages;
   const secondOrder = second.manualOrder || second.selectedImages;
   const sameManualOrder = firstOrder.length === secondOrder.length && firstOrder.every((image, index) => image === secondOrder[index]);
-  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.customOrder === second.customOrder && sameManualOrder && first.selectedAlignment === second.selectedAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && JSON.stringify(firstBorders) === JSON.stringify(secondBorders) && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(first.eraseColor) === JSON.stringify(second.eraseColor) && first.eraseBorders === second.eraseBorders;
+  const firstErasedColors = first.erasedColors || (first.eraseColor ? [first.eraseColor] : []);
+  const secondErasedColors = second.erasedColors || (second.eraseColor ? [second.eraseColor] : []);
+  return sameImages && first.selectedColor === second.selectedColor && first.borderColor === second.borderColor && first.colorOpacity === second.colorOpacity && first.borderOpacity === second.borderOpacity && first.selectedHue === second.selectedHue && first.selectedSaturation === second.selectedSaturation && first.selectedValue === second.selectedValue && first.selectedOrder === second.selectedOrder && first.customOrder === second.customOrder && sameManualOrder && first.selectedAlignment === second.selectedAlignment && first.selectedHorizontalAlignment === second.selectedHorizontalAlignment && first.isVertical === second.isVertical && first.highlightEnabled === second.highlightEnabled && JSON.stringify(firstBorders) === JSON.stringify(secondBorders) && first.paddingSize === second.paddingSize && first.borderThickness === second.borderThickness && JSON.stringify(first.borderRadii) === JSON.stringify(second.borderRadii) && JSON.stringify(first.gapSizes) === JSON.stringify(second.gapSizes) && JSON.stringify(firstErasedColors) === JSON.stringify(secondErasedColors) && first.eraseBorders === second.eraseBorders;
 }
 
 function commitHistory() {
@@ -1758,6 +1956,7 @@ function restoreState(snapshot) {
   customOrder = Boolean(snapshot.customOrder);
   manualOrder = snapshot.manualOrder ? [...snapshot.manualOrder] : [...selectedImages];
   selectedAlignment = snapshot.selectedAlignment;
+  selectedHorizontalAlignment = snapshot.selectedHorizontalAlignment || "center";
   isVertical = snapshot.isVertical;
   highlightEnabled = Boolean(snapshot.highlightEnabled);
   const fallbackBorderSettings = { thickness: snapshot.borderThickness, radii: snapshot.borderRadii };
@@ -1769,7 +1968,10 @@ function restoreState(snapshot) {
   paddingSize = snapshot.paddingSize;
   borderThickness = typeof snapshot.borderThickness === "number" ? snapshot.borderThickness : 0;
   borderRadii = snapshot.borderRadii ? { ...snapshot.borderRadii } : { topLeft: 0, bottomLeft: 0, bottomRight: 0, topRight: 0 };
-  eraseColor = snapshot.eraseColor ? { ...snapshot.eraseColor } : null;
+  erasedColors = (snapshot.erasedColors || (snapshot.eraseColor ? [snapshot.eraseColor] : [])).map((color) => ({ ...color }));
+  eraseColor = erasedColors.length ? { ...erasedColors[erasedColors.length - 1] } : null;
+  selectedErasedColorIndexes.clear();
+  erasedColorAnchorIndex = null;
   eraseBorders = Boolean(snapshot.eraseBorders);
   selectedImageIndex = null;
   selectedImageIndexes.clear();
@@ -1780,12 +1982,13 @@ function restoreState(snapshot) {
   eraseColorButton.classList.remove("is-active");
   eraseBorderButton.classList.toggle("is-active", eraseBorders);
   eraseBorderButton.setAttribute("aria-pressed", String(eraseBorders));
-  eraseStatus.textContent = eraseColor ? `Cor apagada: (${rgbToHex(eraseColor).toUpperCase()})` : "Cor apagada: ()";
+  updateEraseStatus();
   verticalToggle.classList.toggle("is-active", isVertical);
   verticalToggle.setAttribute("aria-pressed", String(isVertical));
   highlightToggle.classList.toggle("is-active", highlightEnabled);
   highlightToggle.setAttribute("aria-pressed", String(highlightEnabled));
   alignButtons.forEach((button) => { button.disabled = isVertical; });
+  horizontalAlignButtons.forEach((button) => { button.disabled = !isVertical; });
   orderButtons.forEach((button) => {
     const isActive = !customOrder && button.dataset.order === selectedOrder;
     button.classList.toggle("is-active", isActive);
@@ -1793,6 +1996,11 @@ function restoreState(snapshot) {
   });
   alignButtons.forEach((button) => {
     const isActive = button.dataset.align === selectedAlignment;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-checked", String(isActive));
+  });
+  horizontalAlignButtons.forEach((button) => {
+    const isActive = button.dataset.horizontalAlign === selectedHorizontalAlignment;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-checked", String(isActive));
   });
